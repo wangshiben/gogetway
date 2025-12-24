@@ -15,12 +15,21 @@ type Packet struct {
 	Type         Types.ClientType
 	From         string
 	To           string
-	ReqTimestamp int64
+	reqTimestamp int64
 }
 
 func (p *Packet) Marshal() []byte {
 	body := handleDataBody(p.Data)
 	return writeHeader(body, p.Type, fmt.Sprintf("%s...%s", p.From, p.To))
+}
+func NewPacket(data []byte, From, To string, PacketType Types.ClientType) *Packet {
+	return &Packet{
+		Data:         data,
+		Type:         PacketType,
+		From:         From,
+		To:           To,
+		reqTimestamp: 0,
+	}
 }
 
 func UnMarshal(data []byte) (*Packet, error) {
@@ -68,7 +77,7 @@ func UnMarshal(data []byte) (*Packet, error) {
 			Type:         Types.ClientType(PacakgeType),
 			From:         FromToArr[0],
 			To:           FromToArr[1],
-			ReqTimestamp: parseBytesToInt64(timeStamp),
+			reqTimestamp: parseBytesToInt64(timeStamp),
 		}, nil
 	}
 	return nil, errors.New("not my packet you may read wrong bytes")
