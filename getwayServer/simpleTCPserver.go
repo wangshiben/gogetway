@@ -42,7 +42,7 @@ type SimpleTCPServer struct {
 	writeQueue   *WriteQueue
 }
 
-type ClientRespParse func(data []byte) (isContinue bool)
+type ClientRespParse func(DataPaket *proto.Packet) (isContinue bool)
 type WriteFunc func(data []byte, ctx context.Context) (offset int, err error)
 
 func (s *SimpleTCPServer) StartListen() {
@@ -97,10 +97,14 @@ func (s *SimpleTCPServer) PackageToForward(Forward, Client net.Conn) {
 		buffer, midReader = ReadTcpType(Client, buffer)
 	}
 	ctx.Put(ListenType, s.ListenType)
-	ctx.Put(FromTo, fmt.Sprintf("%s...%s", Client.RemoteAddr().String(), Forward.RemoteAddr().String()))
-	// Single forward copy  from client to forwardIP 单向拷贝：从 client 到 forward
+	From := Client.RemoteAddr().String()
+	To := Forward.RemoteAddr().String()
+	ctx.Put(FromTo, fmt.Sprintf("%s...%s", From, To))
+
+	// Single forward copy  from client to forwardIP 单向拷贝： client -> forward
 	if s.startAnalyze.Get() {
-		s.ClientRespParse(buffer.Bytes())
+		packet := proto.NewPacket(buffer.Bytes(), From, To, s.ListenType)
+		s.ClientRespParse(packet)
 	}
 	io.Copy(Forward, midReader)
 	currentIndex := s.currentIndex.Get()
@@ -135,10 +139,13 @@ func (s *SimpleTCPServer) PackageToClient(Client, Forward net.Conn) {
 		buffer, midReader = ReadTcpType(Forward, buffer)
 	}
 	ctx.Put(ListenType, s.ListenType)
-	ctx.Put(FromTo, fmt.Sprintf("%s...%s", Forward.RemoteAddr().String(), Client.RemoteAddr().String()))
+	From := Client.RemoteAddr().String()
+	To := Forward.RemoteAddr().String()
+	ctx.Put(FromTo, fmt.Sprintf("%s...%s", From, To))
 	// Single forward copy  from client to forwardIP 单向拷贝：从 client 到 forward
 	if s.startAnalyze.Get() {
-		s.ForwardRespParse(buffer.Bytes())
+		packet := proto.NewPacket(buffer.Bytes(), From, To, s.ListenType)
+		s.ForwardRespParse(packet)
 	}
 	io.Copy(Client, midReader)
 	currentIndex := s.currentIndex.Get()
