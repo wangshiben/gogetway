@@ -8,3 +8,7 @@ func TestSimpleGetServer(t *testing.T) {
 func TestSimplePostServer(t *testing.T) {
 	SimplePostServer()
 }
+
+func TestSimpleStressHTTPServer(t *testing.T) {
+	SimpleStressHTTPServer()
+}

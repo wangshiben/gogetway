@@ -2,7 +2,9 @@ package getwayServer
 
 import (
 	"context"
+	"fmt"
 	"gogetway/UsefullStructs"
+	"gogetway/logger"
 	"sync"
 )
 
@@ -14,6 +16,7 @@ type WriteQueue struct {
 }
 
 func (w *WriteQueue) AddItem(ctx context.Context, Data []byte, Index uint64, HookWrite WriteFunc) {
+	logger.LogInfo(fmt.Sprintf("AddItem: %d FROM To %s", Index, ctx.Value(FromTo).(string)))
 	pushItem := &QueueItem{Data: Data, Index: Index, HookWrite: HookWrite, Lock: sync.Mutex{}, ctx: ctx}
 	findPrev := w.waitingQueueHeader
 	flag := true
