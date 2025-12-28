@@ -13,30 +13,31 @@ type NetTeeReader struct {
 	isRead    bool
 	loadIndex uint64
 	readLock  sync.RWMutex
+	readHook  ReadHook
 }
 type ReadHook func(index uint64)
 
 func (n *NetTeeReader) Read(bytes []byte) (int, error) {
 	fmt.Println("readCalled")
 	firstBytes := make([]byte, 1)
+	hook := false
 	isRead, err := n.teeReader.Read(firstBytes)
-	if !n.isRead && isRead > 0 {
+	if isRead > 0 {
 		get, unlockFunc := n.lockIndex.LockGet()
 		defer unlockFunc()
-		n.readLock.Lock()
 		index := get
 		n.loadIndex = index
 		n.isRead = true
 		n.lockIndex.SetInLock(index+uint64(1), index)
-		n.readLock.Unlock()
-
-	}
-	if isRead > 0 {
 		bytes[0] = firstBytes[0]
+		hook = true
 	}
 	read, err := n.teeReader.Read(bytes[1:])
 	if err != nil {
 		return isRead, err
+	}
+	if hook {
+		n.readHook(n.loadIndex)
 	}
 
 	return read + isRead, err
@@ -49,10 +50,11 @@ func (n *NetTeeReader) GetIndexed() (uint64, error) {
 	}
 	return n.loadIndex, nil
 }
-func NewNetTeeReader(teeReader io.Reader, LockedValue *LockValue[uint64]) *NetTeeReader {
+func NewNetTeeReader(teeReader io.Reader, LockedValue *LockValue[uint64], readHook ReadHook) *NetTeeReader {
 	return &NetTeeReader{
 		teeReader: teeReader,
 		lockIndex: LockedValue,
 		readLock:  sync.RWMutex{},
+		readHook:  readHook,
 	}
 }

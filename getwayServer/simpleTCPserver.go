@@ -92,13 +92,14 @@ func (s *SimpleTCPServer) PackageToForward(Forward, Client net.Conn) {
 
 	var midReader io.Reader
 	ctx := s.contextPool.GetContext().(*UsefullStructs.Contexts)
-	CountReader := UsefullStructs.NewNetTeeReader(Client, s.currentIndex)
+
 	switch s.ListenType {
 	case TCPType:
-		buffer, midReader = ReadTcpType(CountReader, buffer)
+		buffer, midReader = ReadTcpType(Client, buffer)
 	case HTTPType:
-		buffer, midReader = ReadTcpType(CountReader, buffer)
+		buffer, midReader = ReadTcpType(Client, buffer)
 	}
+	CountReader := UsefullStructs.NewNetTeeReader(midReader, s.currentIndex, s.startRecording(buffer, ctx))
 
 	ctx.Put(ListenType, s.ListenType)
 	From := Client.RemoteAddr().String()
@@ -110,19 +111,19 @@ func (s *SimpleTCPServer) PackageToForward(Forward, Client net.Conn) {
 		packet := proto.NewPacket(buffer.Bytes(), From, To, s.ListenType)
 		s.ClientRespParse(packet)
 	}
-	io.Copy(Forward, midReader)
-	currentIndex, err := CountReader.GetIndexed()
-	if err != nil {
-		fmt.Printf("error: %s\n", err.Error())
-	}
+	io.Copy(Forward, CountReader)
+	//currentIndex, err := CountReader.GetIndexed()
+	//if err != nil {
+	//	fmt.Printf("error: %s\n", err.Error())
+	//}
 	//io.Copy(Forward, midReader)
 	//currentIndex := s.currentIndex.Get()
 	//s.currentIndex.Set(currentIndex + 1)
-	bytesWrite := buffer.Bytes()
-	go func() {
-		//defer s.contextPool.Put(ctx)
-		s.writeQueue.AddItem(ctx, bytesWrite, currentIndex, s.writeDataGenerator)
-	}()
+	//bytesWrite := buffer.Bytes()
+	//go func() {
+	//	//defer s.contextPool.Put(ctx)
+	//	s.writeQueue.AddItem(ctx, bytesWrite, currentIndex, s.writeDataGenerator)
+	//}()
 
 }
 
@@ -140,14 +141,14 @@ func (s *SimpleTCPServer) PackageToClient(Client, Forward net.Conn) {
 
 	var midReader io.Reader
 	ctx := s.contextPool.GetContext().(*UsefullStructs.Contexts)
-	CountReader := UsefullStructs.NewNetTeeReader(Forward, s.currentIndex)
+	//CountReader := UsefullStructs.NewNetTeeReader(Forward, s.currentIndex, s.startRecording(buffer, ctx))
 	switch s.ListenType {
 	case TCPType:
-		buffer, midReader = ReadTcpType(CountReader, buffer)
+		buffer, midReader = ReadTcpType(Forward, buffer)
 	case HTTPType:
-		buffer, midReader = ReadTcpType(CountReader, buffer)
+		buffer, midReader = ReadTcpType(Forward, buffer)
 	}
-
+	CountReader := UsefullStructs.NewNetTeeReader(midReader, s.currentIndex, s.startRecording(buffer, ctx))
 	ctx.Put(ListenType, s.ListenType)
 	From := Forward.RemoteAddr().String()
 	To := Client.RemoteAddr().String()
@@ -158,23 +159,27 @@ func (s *SimpleTCPServer) PackageToClient(Client, Forward net.Conn) {
 		s.ForwardRespParse(packet)
 	}
 	// Data is Steam reading block
-	io.Copy(Client, midReader)
-	currentIndex, err := CountReader.GetIndexed()
-	if err != nil {
-		fmt.Printf("error: %s\n", err.Error())
-	}
+	io.Copy(Client, CountReader)
+	//currentIndex, err := CountReader.GetIndexed()
+	//if err != nil {
+	//	fmt.Printf("error: %s\n", err.Error())
+	//}
 	//io.Copy(Client, midReader)
 	//currentIndex := s.currentIndex.Get()
 	//s.currentIndex.Set(currentIndex + 1)
-	bytesWrite := buffer.Bytes()
-	go func() {
-		s.writeQueue.AddItem(ctx, bytesWrite, currentIndex, s.writeDataGenerator)
-		//defer s.contextPool.Put(ctx)
-	}()
-}
-func (s *SimpleTCPServer) startRecording(CountReader *UsefullStructs.NetTeeReader, byteBuffer *bytes.Buffer, ctx context.Context) {
 
 }
+func (s *SimpleTCPServer) startRecording(buffer *bytes.Buffer, ctx context.Context) UsefullStructs.ReadHook {
+	return func(index uint64) {
+		bytesWrite := buffer.Bytes()
+		defer buffer.Reset()
+		go func() {
+			s.writeQueue.AddItem(ctx, bytesWrite, index, s.writeDataGenerator)
+			//defer s.contextPool.Put(ctx)
+		}()
+	}
+}
+
 func (s *SimpleTCPServer) writeDataGenerator(data []byte, ctx context.Context) (offset int, err error) {
 	ctxs, ok := ctx.(*UsefullStructs.Contexts)
 	if ok {

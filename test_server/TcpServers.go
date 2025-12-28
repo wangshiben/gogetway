@@ -53,7 +53,7 @@ func handleConnection(conn net.Conn) {
 			n,
 			string(buffer[:n]))
 		time.Sleep(1 * time.Second)
-		conn.Write([]byte("hello"))
+		conn.Write([]byte("hello\n"))
 		// 如果你只想打印可读文本（丢弃不可打印字符），可用：
 		// fmt.Printf("[%s] Data: %s", time.Now().Format("15:04:05"), string(buffer[:n]))
 	}
