@@ -172,6 +172,9 @@ func (s *SimpleTCPServer) PackageToClient(Client, Forward net.Conn) {
 		//defer s.contextPool.Put(ctx)
 	}()
 }
+func (s *SimpleTCPServer) startRecording(CountReader *UsefullStructs.NetTeeReader, byteBuffer *bytes.Buffer, ctx context.Context) {
+
+}
 func (s *SimpleTCPServer) writeDataGenerator(data []byte, ctx context.Context) (offset int, err error) {
 	ctxs, ok := ctx.(*UsefullStructs.Contexts)
 	if ok {

@@ -12,3 +12,6 @@ func TestSimplePostServer(t *testing.T) {
 func TestSimpleStressHTTPServer(t *testing.T) {
 	SimpleStressHTTPServer()
 }
+func TestSimpleTCPReceiver(t *testing.T) {
+	SimpleTCPReceiver()
+}
