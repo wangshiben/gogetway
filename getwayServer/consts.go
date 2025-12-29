@@ -10,4 +10,6 @@ const (
 const (
 	ListenType = "ListenType"
 	FromTo     = "FromTo"
+	FromIP     = "FromIP"
+	ToIP       = "ToIP"
 )

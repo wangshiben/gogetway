@@ -59,3 +59,11 @@ func SimplePostServer() {
 	})
 	httpServer.StartHttpSerer()
 }
+
+func SimpleStressHTTPServer() {
+	err := http.ListenAndServe(":8000", http.FileServer(http.Dir(".")))
+	if err != nil {
+		return
+	}
+
+}
