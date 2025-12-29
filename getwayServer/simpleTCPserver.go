@@ -44,7 +44,7 @@ type SimpleTCPServer struct {
 	writeQueue   *WriteQueue
 }
 
-type ClientRespParse func(DataPaket *proto.Packet) (isContinue bool)
+type ClientRespParse func(DataPaket *proto.Packet) (isContinue bool, err error)
 type WriteFunc func(data []byte, ctx context.Context) (offset int, err error)
 
 func (s *SimpleTCPServer) StartListen() {
@@ -99,12 +99,13 @@ func (s *SimpleTCPServer) PackageToForward(Forward, Client net.Conn) {
 	case HTTPType:
 		buffer, midReader = ReadTcpType(Client, buffer)
 	}
-	CountReader := UsefullStructs.NewNetTeeReader(midReader, s.currentIndex, s.startRecording(buffer, ctx))
-
 	ctx.Put(ListenType, s.ListenType)
 	From := Client.RemoteAddr().String()
 	To := Forward.RemoteAddr().String()
 	ctx.Put(FromTo, fmt.Sprintf("%s...%s", From, To))
+	ctx.Put(FromIP, From)
+	ctx.Put(ToIP, To)
+	CountReader := UsefullStructs.NewNetTeeReader(midReader, s.currentIndex, s.startRecording(buffer, ctx))
 
 	// Single forward copy  from client to forwardIP 单向拷贝： client -> forward
 	if s.startAnalyze.Get() {
@@ -148,16 +149,17 @@ func (s *SimpleTCPServer) PackageToClient(Client, Forward net.Conn) {
 	case HTTPType:
 		buffer, midReader = ReadTcpType(Forward, buffer)
 	}
-	CountReader := UsefullStructs.NewNetTeeReader(midReader, s.currentIndex, s.startRecording(buffer, ctx))
 	ctx.Put(ListenType, s.ListenType)
 	From := Forward.RemoteAddr().String()
 	To := Client.RemoteAddr().String()
 	ctx.Put(FromTo, fmt.Sprintf("%s...%s", From, To))
+	ctx.Put(FromIP, From)
+	ctx.Put(ToIP, To)
+
+	CountReader := UsefullStructs.NewNetTeeReader(midReader, s.currentIndex, s.startRecording(buffer, ctx))
+
 	// Single forward copy  from client to forwardIP 单向拷贝：从 client 到 forward
-	if s.startAnalyze.Get() {
-		packet := proto.NewPacket(buffer.Bytes(), From, To, s.ListenType)
-		s.ForwardRespParse(packet)
-	}
+
 	// Data is Steam reading block
 	io.Copy(Client, CountReader)
 	//currentIndex, err := CountReader.GetIndexed()
@@ -170,13 +172,24 @@ func (s *SimpleTCPServer) PackageToClient(Client, Forward net.Conn) {
 
 }
 func (s *SimpleTCPServer) startRecording(buffer *bytes.Buffer, ctx context.Context) UsefullStructs.ReadHook {
-	return func(index uint64) {
+	return func(index uint64) (isContinue bool, err error) {
 		bytesWrite := buffer.Bytes()
 		defer buffer.Reset()
+		if s.startAnalyze.Get() {
+			packet := proto.NewPacket(buffer.Bytes(), ctx.Value(FromIP).(string), ctx.Value(ToIP).(string), s.ListenType)
+			parse, err := s.ForwardRespParse(packet)
+			if err != nil {
+				return false, err
+			}
+			if !parse {
+				return parse, nil
+			}
+		}
 		go func() {
 			s.writeQueue.AddItem(ctx, bytesWrite, index, s.writeDataGenerator)
 			//defer s.contextPool.Put(ctx)
 		}()
+		return true, nil
 	}
 }
 

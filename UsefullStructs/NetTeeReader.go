@@ -2,7 +2,6 @@ package UsefullStructs
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"sync"
 )
@@ -15,10 +14,10 @@ type NetTeeReader struct {
 	readLock  sync.RWMutex
 	readHook  ReadHook
 }
-type ReadHook func(index uint64)
+type ReadHook func(index uint64) (isContinue bool, err error)
 
 func (n *NetTeeReader) Read(bytes []byte) (int, error) {
-	fmt.Println("readCalled")
+	//fmt.Println("readCalled")
 	firstBytes := make([]byte, 1)
 	hook := false
 	isRead, err := n.teeReader.Read(firstBytes)
@@ -37,7 +36,13 @@ func (n *NetTeeReader) Read(bytes []byte) (int, error) {
 		return isRead, err
 	}
 	if hook {
-		n.readHook(n.loadIndex)
+		readHook, err := n.readHook(n.loadIndex)
+		if err != nil {
+			return 0, err
+		}
+		if !readHook {
+			return 0, errors.New("filter req")
+		}
 	}
 
 	return read + isRead, err
