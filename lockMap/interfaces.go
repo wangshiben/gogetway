@@ -21,7 +21,7 @@ type LockGroup interface {
 	Destroy()
 	// DefaultLock : get a default lock, when you want to call NewLockOrGroup
 	// DefaultLock : 获取一个默认锁，当你需要调用NewLockOrGroup时
-	DefaultLock() Lock
+	DefaultLock() RWLock
 	// FilterChains : when you decided to start filter packets , we will call FilterChains when we arrive a new  LockGroup
 	// FilterChains : 当你决定开始过滤数据包时，我们会在到达一个新的锁组时调用FilterChains
 	FilterChains() []FilterChain
@@ -35,7 +35,16 @@ type Lock interface {
 	Other() interface{}
 	IsLocked() bool
 	GetIndex() uint64
-	LastCalled() uint64
+	LastCalled() int64
+	Release(count uint)
+	CanRelease() bool
+	IncreaseGetIndex() uint64
+	AddRelease()
+}
+type RWLock interface {
+	Lock
+	RLock()
+	RUnlock()
 }
 
 type FilterChain func(ctx context.Context, From string, bytes []byte) (isContinue bool, err error)

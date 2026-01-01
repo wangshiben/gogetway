@@ -44,7 +44,7 @@ type SimpleTCPServer struct {
 	writeQueue   *WriteQueue
 }
 
-type ClientRespParse func(DataPaket *proto.Packet) (isContinue bool, err error)
+type ClientRespParse func(ctx context.Context, DataPaket *proto.Packet) (isContinue bool, err error)
 type WriteFunc func(data []byte, ctx context.Context) (offset int, err error)
 
 func (s *SimpleTCPServer) StartListen() {
@@ -110,7 +110,7 @@ func (s *SimpleTCPServer) PackageToForward(Forward, Client net.Conn) {
 	// Single forward copy  from client to forwardIP 单向拷贝： client -> forward
 	if s.startAnalyze.Get() {
 		packet := proto.NewPacket(buffer.Bytes(), From, To, s.ListenType)
-		s.ClientRespParse(packet)
+		s.ClientRespParse(ctx, packet)
 	}
 	io.Copy(Forward, CountReader)
 	//currentIndex, err := CountReader.GetIndexed()
@@ -177,7 +177,7 @@ func (s *SimpleTCPServer) startRecording(buffer *bytes.Buffer, ctx context.Conte
 		defer buffer.Reset()
 		if s.startAnalyze.Get() {
 			packet := proto.NewPacket(buffer.Bytes(), ctx.Value(FromIP).(string), ctx.Value(ToIP).(string), s.ListenType)
-			parse, err := s.ForwardRespParse(packet)
+			parse, err := s.ForwardRespParse(ctx, packet)
 			if err != nil {
 				return false, err
 			}
