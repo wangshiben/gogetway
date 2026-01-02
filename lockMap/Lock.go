@@ -61,7 +61,7 @@ func (d *DefaultLock) IncreaseGetIndex() uint64 {
 	d.index += 1
 	return index
 }
-func LockDefaultWithCtx(ctx context.Context) Lock {
+func LockDefaultWithCtx(ctx context.Context, index uint64) Lock {
 	return &DefaultLock{
 		lock:           sync.RWMutex{},
 		index:          0,
@@ -72,7 +72,7 @@ func LockDefaultWithCtx(ctx context.Context) Lock {
 	}
 }
 
-func LockDefaultWithOther(other interface{}) Lock {
+func LockDefaultWithOther(other interface{}, index uint64) Lock {
 	return &DefaultLock{
 		lock:           sync.RWMutex{},
 		index:          0,

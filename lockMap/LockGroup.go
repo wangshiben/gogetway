@@ -142,7 +142,7 @@ func (d *DefaultLockGroup) CreateLock(ctx context.Context, From string) (lock Lo
 	if err != nil {
 		return nil, err
 	}
-	sublock := LockDefaultWithCtx(ctx)
+	sublock := LockDefaultWithCtx(ctx, 0)
 	d.lockMap.Set(From, sublock)
 	return sublock, nil
 }

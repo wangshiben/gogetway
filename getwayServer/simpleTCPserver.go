@@ -32,12 +32,12 @@ type SimpleTCPServer struct {
 	// default Writer in your disk as default writer
 	Writer *os.File //TODO: multi writer
 
-	startAnalyze *UsefullStructs.LockValue[bool]
+	startAnalyze *UsefullStructs.LockValue[bool] // analyze
 
-	listener net.Listener
-
-	bufferPool  *UsefullStructs.BufferPool
-	contextPool *UsefullStructs.ContextPool
+	listener      net.Listener
+	resourceGroup ResourceGroup
+	bufferPool    *UsefullStructs.BufferPool
+	contextPool   *UsefullStructs.ContextPool
 
 	writeFunc    WriteFunc                         // 写入函数，可以写入 文件/数据库
 	currentIndex *UsefullStructs.LockValue[uint64] // startFrom uint 1

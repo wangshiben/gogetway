@@ -38,7 +38,7 @@ func (d *DefaultRWLock) RUnlock() {
 }
 
 func RWLockDefaultWithCtx(ctx context.Context) RWLock {
-	withCtx := LockDefaultWithCtx(ctx)
+	withCtx := LockDefaultWithCtx(ctx, 0)
 	return &DefaultRWLock{
 		Lock:      withCtx,
 		readCount: atomic.Int32{},
@@ -46,7 +46,7 @@ func RWLockDefaultWithCtx(ctx context.Context) RWLock {
 }
 
 func RWLockDefaultWithOther(other interface{}) RWLock {
-	withOther := LockDefaultWithOther(other)
+	withOther := LockDefaultWithOther(other, 0)
 	return &DefaultRWLock{
 		Lock:      withOther,
 		readCount: atomic.Int32{},
