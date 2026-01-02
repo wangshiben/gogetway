@@ -30,7 +30,7 @@ type SimpleTCPServer struct {
 	// ForwardRespParse : Forward Response Parse 转发响应解析函数 TODO: 当startAnalyze时候才启用
 	ForwardRespParse ClientRespParse
 	// default Writer in your disk as default writer
-	Writer *os.File
+	Writer *os.File //TODO: multi writer
 
 	startAnalyze *UsefullStructs.LockValue[bool]
 

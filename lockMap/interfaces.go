@@ -19,6 +19,8 @@ type LockGroup interface {
 	// Destroy : destroy a lock group when a hook CheckLocks find a lock group is not used,but we suggest you must be careful when you call Destroy
 	// Destroy : 销毁一个锁组，当调用CheckLocks检查一个锁组没有被使用时就会调用，我们建议你务必小心调用Destroy
 	Destroy()
+	CanDestroy() bool
+
 	// DefaultLock : get a default lock, when you want to call NewLockOrGroup
 	// DefaultLock : 获取一个默认锁，当你需要调用NewLockOrGroup时
 	DefaultLock() RWLock
@@ -45,6 +47,11 @@ type RWLock interface {
 	Lock
 	RLock()
 	RUnlock()
+}
+type CtxWithValue interface {
+	context.Context
+	Put(key string, value any)
+	Clear()
 }
 
 type FilterChain func(ctx context.Context, From string, bytes []byte) (isContinue bool, err error)

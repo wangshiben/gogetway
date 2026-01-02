@@ -1,13 +1,14 @@
 package lockMap
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
 type DefaultLock struct {
-	lock           sync.Mutex
+	lock           sync.RWMutex
 	index          uint64
 	isLocked       bool
 	other          interface{}
@@ -59,4 +60,25 @@ func (d *DefaultLock) IncreaseGetIndex() uint64 {
 	index := d.index
 	d.index += 1
 	return index
+}
+func LockDefaultWithCtx(ctx context.Context) Lock {
+	return &DefaultLock{
+		lock:           sync.RWMutex{},
+		index:          0,
+		isLocked:       false,
+		other:          ctx.Value("other"),
+		waitingRelease: atomic.Int32{},
+		lastCalled:     time.Now().UnixMilli(),
+	}
+}
+
+func LockDefaultWithOther(other interface{}) Lock {
+	return &DefaultLock{
+		lock:           sync.RWMutex{},
+		index:          0,
+		isLocked:       false,
+		other:          other,
+		waitingRelease: atomic.Int32{},
+		lastCalled:     time.Now().UnixMilli(),
+	}
 }
