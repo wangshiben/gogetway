@@ -1,6 +1,8 @@
 
 # gogetway
 
+中文 | [English](Readme.md)
+
 ## 介绍: 
 
 gogetway是一款开源的能支持TCP流量的高性能流量录制网关，适用于录制TCP流量，支持自定义级别的TCP流量回放，
