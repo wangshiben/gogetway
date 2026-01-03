@@ -1,7 +1,7 @@
 
 # gogetway
 
-中文 | [English](Readme.md)
+中文 | [English](Readme_EN.md)
 
 ## 介绍: 
 
