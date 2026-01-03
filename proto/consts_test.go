@@ -45,7 +45,8 @@ func TestPacket_Marshal(t *testing.T) {
 }
 
 func TestReadProtoFromReader(t *testing.T) {
-	file, err := os.OpenFile("D:\\go\\gogetway\\getwayServer\\log.txt", os.O_RDONLY, 0666)
+	file, err := os.OpenFile("D:\\go\\gogetway\\getwayServer\\log1.txt", os.O_RDONLY, 0666)
+	count := 1
 	if err != nil {
 		panic(err)
 	}
@@ -57,11 +58,12 @@ func TestReadProtoFromReader(t *testing.T) {
 			t.Errorf("%v", err)
 			return
 		}
-		data, err := json.Marshal(marshal)
+		_, err = json.Marshal(marshal)
 		if err != nil {
 			t.Errorf("%v", err)
 			return
 		}
-		fmt.Printf("%s\n", string(data))
+		count++
 	}
+	fmt.Printf("count:%d", count)
 }

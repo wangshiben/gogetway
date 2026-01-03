@@ -115,7 +115,7 @@ func (d *DefaultLockGroup) NewLockOrGroup(ctx context.Context, From string) (loc
 			return nil, group, err
 		}
 	}
-	resLock, err := d.CreateLock(ctx, ports[1])
+	resLock, err := d.CreateLock(ctx, ports[0])
 	return resLock, nil, err
 }
 

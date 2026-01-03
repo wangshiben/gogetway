@@ -2,6 +2,7 @@ package lockMap
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,6 +30,13 @@ func (d *DefaultLock) AddRelease() {
 	d.waitingRelease.Add(1)
 }
 
+func (d *DefaultLock) UpdateOther(other interface{}) error {
+	if d.other != nil {
+		return errors.New("other is not nil you can't update it ")
+	}
+	d.other = other
+	return nil
+}
 func (d *DefaultLock) CanRelease() bool {
 	// 没有被锁且没有占用的goruntime可直接释放
 	return d.waitingRelease.Load() <= 0 && !d.isLocked

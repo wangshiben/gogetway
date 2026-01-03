@@ -35,6 +35,7 @@ type Lock interface {
 	Lock()
 	Unlock()
 	Other() interface{}
+	UpdateOther(other interface{}) error
 	IsLocked() bool
 	GetIndex() uint64
 	LastCalled() int64

@@ -1,8 +1,8 @@
-package UsefullStructs
+package reader
 
 import (
-	"context"
 	"errors"
+	"gogetway/UsefullStructs"
 	"gogetway/lockMap"
 	"io"
 	"sync"
@@ -10,7 +10,7 @@ import (
 
 type NetTeeReader struct {
 	teeReader io.Reader
-	lockIndex *LockValue[uint64]
+	lockIndex *UsefullStructs.LockValue[uint64]
 	lock      lockMap.Lock
 	isRead    bool
 	loadIndex uint64
@@ -56,12 +56,12 @@ func (n *NetTeeReader) GetIndexed() (uint64, error) {
 	}
 	return n.loadIndex, nil
 }
-func NewNetTeeReader(teeReader io.Reader, LockedValue *LockValue[uint64], readHook ReadHook) *NetTeeReader {
+func NewNetTeeReader(teeReader io.Reader, LockedValue lockMap.Lock, readHook ReadHook) *NetTeeReader {
 	return &NetTeeReader{
 		teeReader: teeReader,
-		lockIndex: LockedValue,
-		readLock:  sync.RWMutex{},
-		lock:      lockMap.LockDefaultWithCtx(context.Background(), 1), // TODO: replace with lockMap.Lock
-		readHook:  readHook,
+		//lockIndex: LockedValue,
+		readLock: sync.RWMutex{},
+		lock:     LockedValue, // TODO: replace with lockMap.Lock
+		readHook: readHook,
 	}
 }

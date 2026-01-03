@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"gogetway/Types"
 	"gogetway/UsefullStructs"
+	"gogetway/lockMap"
 	"gogetway/logger"
 	"gogetway/proto"
+	"gogetway/reader"
 	"io"
 	"log"
 
@@ -70,18 +72,23 @@ func (s *SimpleTCPServer) StartListen() {
 				clientConn.Close()
 				return
 			}
-
+			ctx := s.contextPool.GetContext()
+			// TODO feature: you can init ctx with connection init
+			resource, err := s.resourceGroup.GetResource(ctx, clientConn)
+			if err != nil {
+				return
+			}
 			// 启动两个 goroutine 实现双向转发
-			go s.PackageToForward(targetConn, clientConn) // client → target
-			go s.PackageToClient(clientConn, targetConn)  // target → client
+			go s.PackageToForward(targetConn, clientConn, resource) // client → target
+			go s.PackageToClient(clientConn, targetConn, resource)  // target → client
 		}(clientConn)
 	}
 }
 
-// PackageToForward : Client Package to Forward IP 将Client端的TCP包转发到指定IP端口
+// PackageToForward : Client Package to Forward IP 将Client端的TCP包转 发到指定IP端口
 // Forward : Forward IP 转发地址
 // Client : Client Conn 客户端连接
-func (s *SimpleTCPServer) PackageToForward(Forward, Client net.Conn) {
+func (s *SimpleTCPServer) PackageToForward(Forward, Client net.Conn, Resource ConnectResource) {
 	defer Forward.Close()
 	defer Client.Close()
 	buffer := s.bufferPool.Get()
@@ -105,7 +112,7 @@ func (s *SimpleTCPServer) PackageToForward(Forward, Client net.Conn) {
 	ctx.Put(FromTo, fmt.Sprintf("%s...%s", From, To))
 	ctx.Put(FromIP, From)
 	ctx.Put(ToIP, To)
-	CountReader := UsefullStructs.NewNetTeeReader(midReader, s.currentIndex, s.startRecording(buffer, ctx))
+	CountReader := reader.NewNetTeeReader(midReader, Resource.GetLock(), s.startRecording(buffer, ctx, Resource))
 
 	// Single forward copy  from client to forwardIP 单向拷贝： client -> forward
 	if s.startAnalyze.Get() {
@@ -131,7 +138,7 @@ func (s *SimpleTCPServer) PackageToForward(Forward, Client net.Conn) {
 // PackageToClient :  Forward IP Package to Client 将指定IP端口的TCP包转发到Client
 // Forward : Forward IP 转发地址
 // Client : Client Conn 客户端连接
-func (s *SimpleTCPServer) PackageToClient(Client, Forward net.Conn) {
+func (s *SimpleTCPServer) PackageToClient(Client, Forward net.Conn, Resource ConnectResource) {
 	defer Forward.Close()
 	defer Client.Close()
 	buffer := s.bufferPool.Get()
@@ -156,7 +163,7 @@ func (s *SimpleTCPServer) PackageToClient(Client, Forward net.Conn) {
 	ctx.Put(FromIP, From)
 	ctx.Put(ToIP, To)
 
-	CountReader := UsefullStructs.NewNetTeeReader(midReader, s.currentIndex, s.startRecording(buffer, ctx))
+	CountReader := reader.NewNetTeeReader(midReader, Resource.GetLock(), s.startRecording(buffer, ctx, Resource))
 
 	// Single forward copy  from client to forwardIP 单向拷贝：从 client 到 forward
 
@@ -171,7 +178,7 @@ func (s *SimpleTCPServer) PackageToClient(Client, Forward net.Conn) {
 	//s.currentIndex.Set(currentIndex + 1)
 
 }
-func (s *SimpleTCPServer) startRecording(buffer *bytes.Buffer, ctx context.Context) UsefullStructs.ReadHook {
+func (s *SimpleTCPServer) startRecording(buffer *bytes.Buffer, ctx context.Context, resource ConnectResource) reader.ReadHook {
 	return func(index uint64) (isContinue bool, err error) {
 		bytesWrite := buffer.Bytes()
 		defer buffer.Reset()
@@ -186,32 +193,38 @@ func (s *SimpleTCPServer) startRecording(buffer *bytes.Buffer, ctx context.Conte
 			}
 		}
 		go func() {
-			s.writeQueue.AddItem(ctx, bytesWrite, index, s.writeDataGenerator)
+			resource.WriteQueue().AddItem(ctx, bytesWrite, index, writeDataGenerator(resource.Writer(), resource.WriteFunc()))
 			//defer s.contextPool.Put(ctx)
 		}()
 		return true, nil
 	}
 }
 
-func (s *SimpleTCPServer) writeDataGenerator(data []byte, ctx context.Context) (offset int, err error) {
-	ctxs, ok := ctx.(*UsefullStructs.Contexts)
-	if ok {
-		clientType := ctxs.Value(ListenType).(Types.ClientType)
-		fromTo := ctxs.Value(FromTo).(string)
-		writeProtoData := proto.WriteProto(data, clientType, fromTo)
-		if s.writeFunc != nil {
-			return s.writeFunc(writeProtoData, ctx)
-		} else {
-			n, err := s.Writer.Write(writeProtoData)
-			err = s.Writer.Sync()
-			if err != nil {
-				fmt.Printf("error: %s\n", err.Error())
-				return 0, err
+func writeDataGenerator(writer io.Writer, writeFunc WriteFunc) WriteFunc {
+	return func(data []byte, ctx context.Context) (offset int, err error) {
+		ctxs, ok := ctx.(*UsefullStructs.Contexts)
+		if ok {
+			clientType := ctxs.Value(ListenType).(Types.ClientType)
+			fromTo := ctxs.Value(FromTo).(string)
+			writeProtoData := proto.WriteProto(data, clientType, fromTo)
+			if writeFunc != nil {
+				return writeFunc(writeProtoData, ctx)
+			} else {
+				n, err := writer.Write(writeProtoData)
+				fileWriter, ok := writer.(*os.File)
+				if ok {
+					// if io.Writer is a file, sync it now
+					err = fileWriter.Sync()
+					if err != nil {
+						fmt.Printf("error: %s\n", err.Error())
+						return 0, err
+					}
+				}
+				return n, err
 			}
-			return n, err
 		}
+		return 0, err
 	}
-	return 0, err
 }
 
 func ReadTcpType(conn io.Reader, buffer *bytes.Buffer) (buffers *bytes.Buffer, midReader io.Reader) {
@@ -231,14 +244,15 @@ func NewSimpleTCPServer(ForwardAdd, LocalAdd string, ListenType Types.ClientType
 		WriteType:        "",
 		ClientRespParse:  nil,
 		ForwardRespParse: nil,
-		Writer:           file,
-		startAnalyze:     UsefullStructs.NewLockValue(false),
-		listener:         nil,
-		bufferPool:       UsefullStructs.NewBufferPool(10),
-		contextPool:      UsefullStructs.NewContextPool(),
-		writeFunc:        nil,
-		currentIndex:     UsefullStructs.NewLockValue(uint64(1)),
-		writeQueue:       NewWriteQueue(context.Background()),
+		//Writer:           file,
+		startAnalyze: UsefullStructs.NewLockValue(false),
+		listener:     nil,
+		bufferPool:   UsefullStructs.NewBufferPool(10),
+		contextPool:  UsefullStructs.NewContextPool(),
+		writeFunc:    nil,
+		//currentIndex:     UsefullStructs.NewLockValue(uint64(1)),
+		writeQueue:    NewWriteQueue(context.Background()),
+		resourceGroup: NewResourceGroup(file, lockMap.NewDefaultLockGroup(5), nil),
 	}
 }
 
