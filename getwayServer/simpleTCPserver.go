@@ -226,6 +226,12 @@ func writeDataGenerator(writer io.Writer, writeFunc WriteFunc) WriteFunc {
 		return 0, err
 	}
 }
+func (s *SimpleTCPServer) UpdateResourceGroup(resourceGroup ResourceGroup) {
+	if resourceGroup == nil {
+		panic("resourceGroup is nil")
+	}
+	s.resourceGroup = resourceGroup
+}
 
 func ReadTcpType(conn io.Reader, buffer *bytes.Buffer) (buffers *bytes.Buffer, midReader io.Reader) {
 	reader := io.TeeReader(conn, buffer)
@@ -253,6 +259,26 @@ func NewSimpleTCPServer(ForwardAdd, LocalAdd string, ListenType Types.ClientType
 		//currentIndex:     UsefullStructs.NewLockValue(uint64(1)),
 		writeQueue:    NewWriteQueue(context.Background()),
 		resourceGroup: NewResourceGroup(file, lockMap.NewDefaultLockGroup(5), nil),
+	}
+}
+
+func NewSimpleTCPServerWithWriterAndFunc(ForwardAdd, LocalAdd string, ListenType Types.ClientType, writer io.Writer, writeFunc WriteFunc) *SimpleTCPServer {
+	return &SimpleTCPServer{
+		Forward:          ForwardAdd,
+		Port:             LocalAdd,
+		ListenType:       ListenType,
+		WriteType:        "",
+		ClientRespParse:  nil,
+		ForwardRespParse: nil,
+		//Writer:           file,
+		startAnalyze: UsefullStructs.NewLockValue(false),
+		listener:     nil,
+		bufferPool:   UsefullStructs.NewBufferPool(10),
+		contextPool:  UsefullStructs.NewContextPool(),
+		writeFunc:    nil,
+		//currentIndex:     UsefullStructs.NewLockValue(uint64(1)),
+		writeQueue:    NewWriteQueue(context.Background()),
+		resourceGroup: NewResourceGroup(writer, lockMap.NewDefaultLockGroup(5), writeFunc),
 	}
 }
 

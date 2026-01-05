@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"gogetway/lockMap"
+	"io"
 	"net"
-	"os"
 )
 
 type DefaultResourceGroup struct {
 	rootLockGroup lockMap.LockGroup
-	defaultWriter *os.File
+	defaultWriter io.Writer
 	writeFunc     WriteFunc
 }
 
@@ -59,7 +59,7 @@ func (d *DefaultResourceGroup) NewResourceFunc(ctx context.Context, From string)
 		}, nil
 	}
 }
-func NewResourceGroup(file *os.File, lockGroup lockMap.LockGroup, writeFunc WriteFunc) ResourceGroup {
+func NewResourceGroup(file io.Writer, lockGroup lockMap.LockGroup, writeFunc WriteFunc) ResourceGroup {
 	return &DefaultResourceGroup{
 		rootLockGroup: lockGroup,
 		defaultWriter: file,
