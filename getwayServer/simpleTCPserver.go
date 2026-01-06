@@ -281,6 +281,25 @@ func NewSimpleTCPServerWithWriterAndFunc(ForwardAdd, LocalAdd string, ListenType
 		resourceGroup: NewResourceGroup(writer, lockMap.NewDefaultLockGroup(5), writeFunc),
 	}
 }
+func NewSimpleTcpServerWithResourceGroup(ForwardAdd, LocalAdd string, ListenType Types.ClientType, group ResourceGroup) *SimpleTCPServer {
+	return &SimpleTCPServer{
+		Forward:          ForwardAdd,
+		Port:             LocalAdd,
+		ListenType:       ListenType,
+		WriteType:        "",
+		ClientRespParse:  nil,
+		ForwardRespParse: nil,
+		//Writer:           file,
+		startAnalyze: UsefullStructs.NewLockValue(false),
+		listener:     nil,
+		bufferPool:   UsefullStructs.NewBufferPool(10),
+		contextPool:  UsefullStructs.NewContextPool(),
+		writeFunc:    nil,
+		//currentIndex:     UsefullStructs.NewLockValue(uint64(1)),
+		writeQueue:    NewWriteQueue(context.Background()),
+		resourceGroup: group,
+	}
+}
 
 // TODO 待实现
 //func ReadHttpType(connect net.Conn, buffer *bytes.Buffer) (buffers *bytes.Buffer, midReader io.Reader) {
