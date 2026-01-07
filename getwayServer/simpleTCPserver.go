@@ -262,6 +262,30 @@ func NewSimpleTCPServer(ForwardAdd, LocalAdd string, ListenType Types.ClientType
 	}
 }
 
+func NewSimpleTCPServerWithLockGroup(ForwardAdd, LocalAdd string, ListenType Types.ClientType, lockGroup lockMap.LockGroup) *SimpleTCPServer {
+	file, err := os.OpenFile("log1.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return nil
+	}
+	return &SimpleTCPServer{
+		Forward:          ForwardAdd,
+		Port:             LocalAdd,
+		ListenType:       ListenType,
+		WriteType:        "",
+		ClientRespParse:  nil,
+		ForwardRespParse: nil,
+		//Writer:           file,
+		startAnalyze: UsefullStructs.NewLockValue(false),
+		listener:     nil,
+		bufferPool:   UsefullStructs.NewBufferPool(10),
+		contextPool:  UsefullStructs.NewContextPool(),
+		writeFunc:    nil,
+		//currentIndex:     UsefullStructs.NewLockValue(uint64(1)),
+		writeQueue:    NewWriteQueue(context.Background()),
+		resourceGroup: NewResourceGroup(file, lockGroup, nil),
+	}
+}
+
 func NewSimpleTCPServerWithWriterAndFunc(ForwardAdd, LocalAdd string, ListenType Types.ClientType, writer io.Writer, writeFunc WriteFunc) *SimpleTCPServer {
 	return &SimpleTCPServer{
 		Forward:          ForwardAdd,
