@@ -55,14 +55,14 @@ func (t *TcpPlayer) SendSinglePacket(reader io.Reader, to string, parser DataPar
 			}
 		}
 		if packet != nil && packet.To == to {
-
+			t.SendPacket(packet)
 		}
 	}
 }
 
 // SendPacket : replay all packet in once tcp/http traffic
 // SendPacket : 重放一个tcp/http的所有流量
-func (t *TcpPlayer) SendPacket(packet proto.Packet) error {
+func (t *TcpPlayer) SendPacket(packet *proto.Packet) error {
 	if packet.From == t.Client {
 		t.waitingAndSend(true, packet.Timestamp())
 		_, err := t.clientConn.Write(packet.Data)
@@ -115,4 +115,16 @@ func (t *TcpPlayer) wait(packetCallTime int64, timeLock lockMap.Lock) {
 	}
 	other[LastCalled] = milli
 	other[PackageTime] = packetCallTime
+}
+
+func NewTCPPlayer(target string, targetConnect net.Conn, Client string, ClientConn net.Conn, replayTime bool) *TcpPlayer {
+	return &TcpPlayer{
+		Target:           target,
+		Client:           Client,
+		clientConn:       ClientConn,
+		targetConn:       targetConnect,
+		replayTime:       replayTime,
+		clientTimeRecord: lockMap.LockDefaultWithOther(make(map[string]int64), 0),
+		targetTimeRecord: lockMap.LockDefaultWithOther(make(map[string]int64), 0),
+	}
 }
