@@ -22,6 +22,9 @@ func (p *Packet) Marshal() []byte {
 	body := handleDataBody(p.Data)
 	return writeHeader(body, p.Type, fmt.Sprintf("%s...%s", p.From, p.To))
 }
+func (p *Packet) Timestamp() int64 {
+	return p.reqTimestamp
+}
 func NewPacket(data []byte, From, To string, PacketType Types.ClientType) *Packet {
 	return &Packet{
 		Data:         data,

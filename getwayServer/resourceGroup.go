@@ -6,6 +6,7 @@ import (
 	"gogetway/lockMap"
 	"io"
 	"net"
+	"time"
 )
 
 type DefaultResourceGroup struct {
@@ -41,6 +42,14 @@ func (d *DefaultResourceGroup) GetResource(ctx context.Context, Connect net.Conn
 	return connectResource, nil
 }
 
+func (d *DefaultResourceGroup) startCheckingResource() {
+	for {
+		time.Sleep(10 * time.Minute)
+		ctx := context.Background()
+		d.rootLockGroup.CheckLocks(ctx)
+	}
+}
+
 func (d *DefaultResourceGroup) NewResourceFunc(ctx context.Context, From string) NewResourceFunc {
 	lock, ok := ctx.Value("lock").(lockMap.Lock)
 	if !ok {
@@ -60,9 +69,11 @@ func (d *DefaultResourceGroup) NewResourceFunc(ctx context.Context, From string)
 	}
 }
 func NewResourceGroup(file io.Writer, lockGroup lockMap.LockGroup, writeFunc WriteFunc) ResourceGroup {
-	return &DefaultResourceGroup{
+	d := &DefaultResourceGroup{
 		rootLockGroup: lockGroup,
 		defaultWriter: file,
 		writeFunc:     writeFunc,
 	}
+	d.startCheckingResource()
+	return d
 }
