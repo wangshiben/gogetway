@@ -41,13 +41,15 @@ type SimpleTCPServer struct {
 	bufferPool    *UsefullStructs.BufferPool
 	contextPool   *UsefullStructs.ContextPool
 
-	writeFunc    WriteFunc                         // 写入函数，可以写入 文件/数据库
-	currentIndex *UsefullStructs.LockValue[uint64] // startFrom uint 1
-	writeQueue   *WriteQueue
+	writeFunc         WriteFunc                         // 写入函数，可以写入 文件/数据库
+	currentIndex      *UsefullStructs.LockValue[uint64] // startFrom uint 1
+	writeQueue        *WriteQueue
+	connectTargetFunc ConnectTarget // connect target,动态发送包
 }
 
 type ClientRespParse func(ctx context.Context, DataPaket *proto.Packet) (isContinue bool, err error)
 type WriteFunc func(data []byte, ctx context.Context) (offset int, err error)
+type ConnectTarget func(ctx context.Context, client net.Conn) (net.Conn, error)
 
 func (s *SimpleTCPServer) StartListen() {
 	listener, err := net.Listen("tcp", s.Port)
@@ -66,13 +68,13 @@ func (s *SimpleTCPServer) StartListen() {
 		}
 		go func(clientConn net.Conn) {
 			targetAddr := s.Forward
-			targetConn, err := net.Dial("tcp", targetAddr)
+			ctx := s.contextPool.GetContext()
+			targetConn, err := s.connectTarget(ctx, clientConn)
 			if err != nil {
 				log.Printf("Failed to connect to target %s: %v", targetAddr, err)
 				clientConn.Close()
 				return
 			}
-			ctx := s.contextPool.GetContext()
 			// TODO feature: you can init ctx with connection init
 			resource, err := s.resourceGroup.GetResource(ctx, clientConn)
 			if err != nil {
@@ -83,6 +85,12 @@ func (s *SimpleTCPServer) StartListen() {
 			go s.PackageToClient(clientConn, targetConn, resource)  // target → client
 		}(clientConn)
 	}
+}
+func (s *SimpleTCPServer) connectTarget(ctx context.Context, Client net.Conn) (net.Conn, error) {
+	if s.connectTargetFunc != nil {
+		return s.connectTargetFunc(ctx, Client)
+	}
+	return net.Dial("tcp", s.Forward)
 }
 
 // PackageToForward : Client Package to Forward IP 将Client端的TCP包转 发到指定IP端口
