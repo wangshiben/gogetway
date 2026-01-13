@@ -86,6 +86,9 @@ func (s *SimpleTCPServer) StartListen() {
 		}(clientConn)
 	}
 }
+func (s *SimpleTCPServer) SetConnectTargetFunc(connectFunc ConnectTarget) {
+	s.connectTargetFunc = connectFunc
+}
 func (s *SimpleTCPServer) connectTarget(ctx context.Context, Client net.Conn) (net.Conn, error) {
 	if s.connectTargetFunc != nil {
 		return s.connectTargetFunc(ctx, Client)
