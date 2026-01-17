@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"gogetway/getwayServer"
 	"io"
 	"log"
 	"net"
@@ -32,21 +33,6 @@ func handleConnection(clientConn net.Conn) {
 }
 
 func main() {
-	listenAddr := ":8888"
-	listener, err := net.Listen("tcp", listenAddr)
-	if err != nil {
-		log.Fatalf("Failed to listen on %s: %v", listenAddr, err)
-	}
-	defer listener.Close()
-
-	log.Printf("TCP proxy listening on %s, forwarding to localhost:8090", listenAddr)
-
-	for {
-		clientConn, err := listener.Accept()
-		if err != nil {
-			log.Printf("Accept error: %v", err)
-			continue
-		}
-		go handleConnection(clientConn)
-	}
+	server := getwayServer.NewSimpleTCPServer("127.0.0.1:8000", ":8081", 1)
+	server.StartListen()
 }

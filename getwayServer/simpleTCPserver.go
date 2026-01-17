@@ -1,6 +1,7 @@
 package getwayServer
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -12,9 +13,11 @@ import (
 	"gogetway/reader"
 	"io"
 	"log"
-
 	"net"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 )
 
 // SimpleTCPServer : Simple TCP Server 简单TCP转发服务，实现监听，转发，写入功能
@@ -60,6 +63,20 @@ func (s *SimpleTCPServer) StartListen() {
 	s.listener = listener
 	defer listener.Close()
 	log.Printf("TCP proxy listening on %s, forwarding to %s", s.Port, s.Forward)
+	// 设置信号通道
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan,
+		os.Interrupt,    // Ctrl+C
+		syscall.SIGTERM, // kill (默认信号)
+		// syscall.SIGINT,  // 通常和 os.Interrupt 相同
+	)
+	go func() {
+		sig := <-sigChan
+		log.Printf("Received signal: %s, exiting...", sig)
+		onCloseCalled(s.resourceGroup)
+		os.Exit(0)
+	}()
+
 	for {
 		clientConn, err := listener.Accept()
 		if err != nil {
@@ -69,6 +86,7 @@ func (s *SimpleTCPServer) StartListen() {
 		go func(clientConn net.Conn) {
 			targetAddr := s.Forward
 			ctx := s.contextPool.GetContext()
+
 			targetConn, err := s.connectTarget(ctx, clientConn)
 			if err != nil {
 				log.Printf("Failed to connect to target %s: %v", targetAddr, err)
@@ -76,13 +94,22 @@ func (s *SimpleTCPServer) StartListen() {
 				return
 			}
 			// TODO feature: you can init ctx with connection init
-			resource, err := s.resourceGroup.GetResource(ctx, clientConn)
+			resource, CloseHook, err := s.resourceGroup.GetResource(ctx, clientConn)
 			if err != nil {
 				return
 			}
+			group := sync.WaitGroup{}
+			group.Add(2)
 			// 启动两个 goroutine 实现双向转发
-			go s.PackageToForward(targetConn, clientConn, resource) // client → target
-			go s.PackageToClient(clientConn, targetConn, resource)  // target → client
+			go func() {
+				s.PackageToForward(targetConn, clientConn, resource)
+				group.Done()
+			}() // client → target
+			go func() {
+				s.PackageToClient(clientConn, targetConn, resource)
+			}() // target → client
+			group.Wait()
+			CloseHook(resource)
 		}(clientConn)
 	}
 }
@@ -222,15 +249,15 @@ func writeDataGenerator(writer io.Writer, writeFunc WriteFunc) WriteFunc {
 				return writeFunc(writeProtoData, ctx)
 			} else {
 				n, err := writer.Write(writeProtoData)
-				fileWriter, ok := writer.(*os.File)
-				if ok {
-					// if io.Writer is a file, sync it now
-					err = fileWriter.Sync()
-					if err != nil {
-						fmt.Printf("error: %s\n", err.Error())
-						return 0, err
-					}
-				}
+				//fileWriter, ok := writer.(*os.File)
+				//if ok {
+				//	// if io.Writer is a file, sync it now
+				//	err = fileWriter.Sync()
+				//	if err != nil {
+				//		fmt.Printf("error: %s\n", err.Error())
+				//		return 0, err
+				//	}
+				//}
 				return n, err
 			}
 		}
@@ -254,6 +281,7 @@ func NewSimpleTCPServer(ForwardAdd, LocalAdd string, ListenType Types.ClientType
 	if err != nil {
 		return nil
 	}
+	writer := bufio.NewWriter(file)
 	return &SimpleTCPServer{
 		Forward:          ForwardAdd,
 		Port:             LocalAdd,
@@ -269,8 +297,12 @@ func NewSimpleTCPServer(ForwardAdd, LocalAdd string, ListenType Types.ClientType
 		writeFunc:    nil,
 		//currentIndex:     UsefullStructs.NewLockValue(uint64(1)),
 		writeQueue:    NewWriteQueue(context.Background()),
-		resourceGroup: NewResourceGroup(file, lockMap.NewDefaultLockGroup(5), nil),
+		resourceGroup: NewResourceGroup(writer, lockMap.NewDefaultLockGroup(5), nil),
 	}
+}
+
+func onCloseCalled(resource ResourceGroup) {
+	resource.Close()
 }
 
 func NewSimpleTCPServerWithLockGroup(ForwardAdd, LocalAdd string, ListenType Types.ClientType, lockGroup lockMap.LockGroup) *SimpleTCPServer {
@@ -278,6 +310,7 @@ func NewSimpleTCPServerWithLockGroup(ForwardAdd, LocalAdd string, ListenType Typ
 	if err != nil {
 		return nil
 	}
+	writer := bufio.NewWriter(file)
 	return &SimpleTCPServer{
 		Forward:          ForwardAdd,
 		Port:             LocalAdd,
@@ -293,7 +326,7 @@ func NewSimpleTCPServerWithLockGroup(ForwardAdd, LocalAdd string, ListenType Typ
 		writeFunc:    nil,
 		//currentIndex:     UsefullStructs.NewLockValue(uint64(1)),
 		writeQueue:    NewWriteQueue(context.Background()),
-		resourceGroup: NewResourceGroup(file, lockGroup, nil),
+		resourceGroup: NewResourceGroup(writer, lockGroup, nil),
 	}
 }
 

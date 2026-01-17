@@ -17,7 +17,9 @@ type ConnectResource interface {
 }
 
 type ResourceGroup interface {
-	GetResource(ctx context.Context, Connect net.Conn) (resource ConnectResource, err error)
+	io.Closer
+	GetResource(ctx context.Context, Connect net.Conn) (resource ConnectResource, CloseHook ConnectionCloseHook, err error)
 	NewResourceFunc(ctx context.Context, From string) NewResourceFunc
 }
 type NewResourceFunc func(ctx context.Context, From string) (resource ConnectResource, err error)
+type ConnectionCloseHook func(resource ConnectResource)

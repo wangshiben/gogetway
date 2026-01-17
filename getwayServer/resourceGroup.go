@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"gogetway/lockMap"
+	"gogetway/writer"
 	"io"
 	"net"
 	"time"
@@ -15,31 +16,34 @@ type DefaultResourceGroup struct {
 	writeFunc     WriteFunc
 }
 
-func (d *DefaultResourceGroup) GetResource(ctx context.Context, Connect net.Conn) (resource ConnectResource, err error) {
+func (d *DefaultResourceGroup) GetResource(ctx context.Context, Connect net.Conn) (resource ConnectResource, CloseHook ConnectionCloseHook, err error) {
 	//TODO implement me
 	addr := Connect.RemoteAddr().String()
 	lock, err := d.rootLockGroup.GetLock(ctx, addr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	lock.AddRelease()
 	connectResource, ok := lock.Other().(ConnectResource)
 	if !ok {
 		if connectResource != nil {
-			return nil, errors.New("lock other is not a ConnectResource")
+			return nil, nil, errors.New("lock other is not a ConnectResource")
 		}
 		value := context.WithValue(ctx, "lock", lock)
 		resourceFunc := d.NewResourceFunc(value, addr)
 		lock.IncreaseGetIndex()
 		connectResource, err = resourceFunc(value, addr)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		err = lock.UpdateOther(resource)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	return connectResource, nil
+	return connectResource, func(resource ConnectResource) {
+		lock.Release(1)
+	}, nil
 }
 
 func (d *DefaultResourceGroup) startCheckingResource() {
@@ -68,12 +72,23 @@ func (d *DefaultResourceGroup) NewResourceFunc(ctx context.Context, From string)
 		}, nil
 	}
 }
+func (d *DefaultResourceGroup) Close() error {
+	closer, ok := d.defaultWriter.(io.Closer)
+	if ok {
+		return closer.Close()
+	}
+	flushable, ok := d.defaultWriter.(writer.Flushable)
+	if ok {
+		return flushable.Flush()
+	}
+	return nil
+}
 func NewResourceGroup(file io.Writer, lockGroup lockMap.LockGroup, writeFunc WriteFunc) ResourceGroup {
 	d := &DefaultResourceGroup{
 		rootLockGroup: lockGroup,
 		defaultWriter: file,
 		writeFunc:     writeFunc,
 	}
-	d.startCheckingResource()
+	go d.startCheckingResource()
 	return d
 }
