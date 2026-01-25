@@ -42,6 +42,7 @@ func (w *WriteQueue) AddItem(ctx context.Context, Data []byte, Index uint64, Hoo
 }
 func (w *WriteQueue) HandleQueue() {
 	w.handleQueues.HookWrite(w.handleQueues.Data, w.handleQueues.ctx)
+
 	w.handleQueues = nil
 	//w.CurrentIndex.Set(w.CurrentIndex.Get() + 1)
 	canNext := w.ContinueHandle()

@@ -34,7 +34,9 @@ func handleDataBody(src []byte) []byte {
 	}
 
 	if count == 0 {
-		return src // 无匹配，直接返回（或 copy）
+		result := make([]byte, len(src))
+		copy(result, src)
+		return result // 无匹配，直接返回（或 copy）
 	}
 
 	// 每个匹配增加 1 字节（"\nt" → "\n\nt"）

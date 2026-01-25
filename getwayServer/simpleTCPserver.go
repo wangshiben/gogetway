@@ -1,6 +1,7 @@
 package getwayServer
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -12,9 +13,11 @@ import (
 	"gogetway/reader"
 	"io"
 	"log"
-
 	"net"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 )
 
 // SimpleTCPServer : Simple TCP Server 简单TCP转发服务，实现监听，转发，写入功能
@@ -41,13 +44,15 @@ type SimpleTCPServer struct {
 	bufferPool    *UsefullStructs.BufferPool
 	contextPool   *UsefullStructs.ContextPool
 
-	writeFunc    WriteFunc                         // 写入函数，可以写入 文件/数据库
-	currentIndex *UsefullStructs.LockValue[uint64] // startFrom uint 1
-	writeQueue   *WriteQueue
+	writeFunc         WriteFunc                         // 写入函数，可以写入 文件/数据库
+	currentIndex      *UsefullStructs.LockValue[uint64] // startFrom uint 1
+	writeQueue        *WriteQueue
+	connectTargetFunc ConnectTarget // connect target,动态发送包
 }
 
 type ClientRespParse func(ctx context.Context, DataPaket *proto.Packet) (isContinue bool, err error)
 type WriteFunc func(data []byte, ctx context.Context) (offset int, err error)
+type ConnectTarget func(ctx context.Context, client net.Conn) (net.Conn, error)
 
 func (s *SimpleTCPServer) StartListen() {
 	listener, err := net.Listen("tcp", s.Port)
@@ -58,6 +63,20 @@ func (s *SimpleTCPServer) StartListen() {
 	s.listener = listener
 	defer listener.Close()
 	log.Printf("TCP proxy listening on %s, forwarding to %s", s.Port, s.Forward)
+	// 设置信号通道
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan,
+		os.Interrupt,    // Ctrl+C
+		syscall.SIGTERM, // kill (默认信号)
+		// syscall.SIGINT,  // 通常和 os.Interrupt 相同
+	)
+	go func() {
+		sig := <-sigChan
+		log.Printf("Received signal: %s, exiting...", sig)
+		onCloseCalled(s.resourceGroup)
+		os.Exit(0)
+	}()
+
 	for {
 		clientConn, err := listener.Accept()
 		if err != nil {
@@ -66,23 +85,42 @@ func (s *SimpleTCPServer) StartListen() {
 		}
 		go func(clientConn net.Conn) {
 			targetAddr := s.Forward
-			targetConn, err := net.Dial("tcp", targetAddr)
+			ctx := s.contextPool.GetContext()
+
+			targetConn, err := s.connectTarget(ctx, clientConn)
 			if err != nil {
 				log.Printf("Failed to connect to target %s: %v", targetAddr, err)
 				clientConn.Close()
 				return
 			}
-			ctx := s.contextPool.GetContext()
 			// TODO feature: you can init ctx with connection init
-			resource, err := s.resourceGroup.GetResource(ctx, clientConn)
+			resource, CloseHook, err := s.resourceGroup.GetResource(ctx, clientConn)
 			if err != nil {
 				return
 			}
+			group := sync.WaitGroup{}
+			group.Add(2)
 			// 启动两个 goroutine 实现双向转发
-			go s.PackageToForward(targetConn, clientConn, resource) // client → target
-			go s.PackageToClient(clientConn, targetConn, resource)  // target → client
+			go func() {
+				s.PackageToForward(targetConn, clientConn, resource)
+				group.Done()
+			}() // client → target
+			go func() {
+				s.PackageToClient(clientConn, targetConn, resource)
+			}() // target → client
+			group.Wait()
+			CloseHook(resource)
 		}(clientConn)
 	}
+}
+func (s *SimpleTCPServer) SetConnectTargetFunc(connectFunc ConnectTarget) {
+	s.connectTargetFunc = connectFunc
+}
+func (s *SimpleTCPServer) connectTarget(ctx context.Context, Client net.Conn) (net.Conn, error) {
+	if s.connectTargetFunc != nil {
+		return s.connectTargetFunc(ctx, Client)
+	}
+	return net.Dial("tcp", s.Forward)
 }
 
 // PackageToForward : Client Package to Forward IP 将Client端的TCP包转 发到指定IP端口
@@ -100,6 +138,7 @@ func (s *SimpleTCPServer) PackageToForward(Forward, Client net.Conn, Resource Co
 	var midReader io.Reader
 	ctx := s.contextPool.GetContext().(*UsefullStructs.Contexts)
 
+	// don't worry about the reader because it's not used , teeReader have no any  effect,when call io.Copy(Forward, CountReader) it will be used
 	switch s.ListenType {
 	case TCPType:
 		buffer, midReader = ReadTcpType(Client, buffer)
@@ -181,6 +220,7 @@ func (s *SimpleTCPServer) PackageToClient(Client, Forward net.Conn, Resource Con
 func (s *SimpleTCPServer) startRecording(buffer *bytes.Buffer, ctx context.Context, resource ConnectResource) reader.ReadHook {
 	return func(index uint64) (isContinue bool, err error) {
 		bytesWrite := buffer.Bytes()
+		//fmt.Printf("buffer Read %s \n\n", string(bytesWrite))
 		defer buffer.Reset()
 		if s.startAnalyze.Get() {
 			packet := proto.NewPacket(buffer.Bytes(), ctx.Value(FromIP).(string), ctx.Value(ToIP).(string), s.ListenType)
@@ -192,10 +232,12 @@ func (s *SimpleTCPServer) startRecording(buffer *bytes.Buffer, ctx context.Conte
 				return parse, nil
 			}
 		}
-		go func() {
+		dataBytes := make([]byte, len(bytesWrite))
+		copy(dataBytes, bytesWrite)
+		go func(bytesWrite []byte) {
 			resource.WriteQueue().AddItem(ctx, bytesWrite, index, writeDataGenerator(resource.Writer(), resource.WriteFunc()))
 			//defer s.contextPool.Put(ctx)
-		}()
+		}(dataBytes)
 		return true, nil
 	}
 }
@@ -203,27 +245,31 @@ func (s *SimpleTCPServer) startRecording(buffer *bytes.Buffer, ctx context.Conte
 func writeDataGenerator(writer io.Writer, writeFunc WriteFunc) WriteFunc {
 	return func(data []byte, ctx context.Context) (offset int, err error) {
 		ctxs, ok := ctx.(*UsefullStructs.Contexts)
+		clientType := TCPType
+		fromTo := ""
 		if ok {
-			clientType := ctxs.Value(ListenType).(Types.ClientType)
-			fromTo := ctxs.Value(FromTo).(string)
-			writeProtoData := proto.WriteProto(data, clientType, fromTo)
-			if writeFunc != nil {
-				return writeFunc(writeProtoData, ctx)
-			} else {
-				n, err := writer.Write(writeProtoData)
-				fileWriter, ok := writer.(*os.File)
-				if ok {
-					// if io.Writer is a file, sync it now
-					err = fileWriter.Sync()
-					if err != nil {
-						fmt.Printf("error: %s\n", err.Error())
-						return 0, err
-					}
-				}
-				return n, err
-			}
+			clientType = ctxs.Value(ListenType).(Types.ClientType)
+			fromTo = ctxs.Value(FromTo).(string)
+
+		} else {
+			fromTo = ctx.Value(FromTo).(string)
 		}
-		return 0, err
+		writeProtoData := proto.WriteProto(data, clientType, fromTo)
+		if writeFunc != nil {
+			return writeFunc(writeProtoData, ctx)
+		} else {
+			n, err := writer.Write(writeProtoData)
+			//fileWriter, ok := writer.(writer2.Flushable)
+			//if ok {
+			//	// if io.Writer is a file, sync it now
+			//	err = fileWriter.Flush()
+			//	if err != nil {
+			//		fmt.Printf("error: %s\n", err.Error())
+			//		return 0, err
+			//	}
+			//}
+			return n, err
+		}
 	}
 }
 func (s *SimpleTCPServer) UpdateResourceGroup(resourceGroup ResourceGroup) {
@@ -238,11 +284,16 @@ func ReadTcpType(conn io.Reader, buffer *bytes.Buffer) (buffers *bytes.Buffer, m
 	return buffer, reader
 }
 
+//func ReadHttpType(conn io.Reader, buffer *bytes.Buffer)(buffers *bytes.Buffer, midReader io.Reader){
+//
+//}
+
 func NewSimpleTCPServer(ForwardAdd, LocalAdd string, ListenType Types.ClientType) *SimpleTCPServer {
 	file, err := os.OpenFile("log1.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return nil
 	}
+	writer := bufio.NewWriter(file)
 	return &SimpleTCPServer{
 		Forward:          ForwardAdd,
 		Port:             LocalAdd,
@@ -258,8 +309,12 @@ func NewSimpleTCPServer(ForwardAdd, LocalAdd string, ListenType Types.ClientType
 		writeFunc:    nil,
 		//currentIndex:     UsefullStructs.NewLockValue(uint64(1)),
 		writeQueue:    NewWriteQueue(context.Background()),
-		resourceGroup: NewResourceGroup(file, lockMap.NewDefaultLockGroup(5), nil),
+		resourceGroup: NewResourceGroup(writer, lockMap.NewDefaultLockGroup(5), nil),
 	}
+}
+
+func onCloseCalled(resource ResourceGroup) {
+	resource.Close()
 }
 
 func NewSimpleTCPServerWithLockGroup(ForwardAdd, LocalAdd string, ListenType Types.ClientType, lockGroup lockMap.LockGroup) *SimpleTCPServer {
@@ -267,6 +322,7 @@ func NewSimpleTCPServerWithLockGroup(ForwardAdd, LocalAdd string, ListenType Typ
 	if err != nil {
 		return nil
 	}
+	writer := bufio.NewWriter(file)
 	return &SimpleTCPServer{
 		Forward:          ForwardAdd,
 		Port:             LocalAdd,
@@ -282,7 +338,7 @@ func NewSimpleTCPServerWithLockGroup(ForwardAdd, LocalAdd string, ListenType Typ
 		writeFunc:    nil,
 		//currentIndex:     UsefullStructs.NewLockValue(uint64(1)),
 		writeQueue:    NewWriteQueue(context.Background()),
-		resourceGroup: NewResourceGroup(file, lockGroup, nil),
+		resourceGroup: NewResourceGroup(writer, lockGroup, nil),
 	}
 }
 

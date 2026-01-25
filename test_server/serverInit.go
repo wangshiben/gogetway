@@ -3,10 +3,13 @@ package test_server
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/wangshiben/QuicFrameWork/Connections"
 	"github.com/wangshiben/QuicFrameWork/RouteDisPatch"
+	"github.com/wangshiben/QuicFrameWork/filter/cors"
 	"github.com/wangshiben/QuicFrameWork/server"
 	"io"
 	"net/http"
+	"time"
 )
 
 type Response struct {
@@ -66,4 +69,40 @@ func SimpleStressHTTPServer() {
 		return
 	}
 
+}
+
+func SimpleSSEServer() {
+	httpServer := server.NewHttpServer(":8000")
+	httpServer.CORS("/", cors.DefaultCORSConfig())
+	httpServer.Route.AddSSEHandler("/", http.MethodGet, func(conn *Connections.SSEConnection) {
+
+		err := conn.SendEvent(&Connections.SSEEvent{
+			Event: "111",
+			Data:  "hello word",
+		})
+		if err != nil {
+			fmt.Printf("error: %s", err.Error())
+			return
+		}
+		time.Sleep(10 * time.Second)
+		err = conn.SendEvent(&Connections.SSEEvent{
+			Event: "111",
+			Data:  "word 2",
+		})
+		if err != nil {
+			fmt.Printf("error: %s", err.Error())
+			return
+		}
+		time.Sleep(10 * time.Second)
+		err = conn.SendEvent(&Connections.SSEEvent{
+			Event: "111",
+			Data:  "end",
+		})
+		if err != nil {
+			fmt.Printf("error: %s", err.Error())
+			return
+		}
+		conn.Close()
+	})
+	httpServer.StartHttpSerer()
 }
