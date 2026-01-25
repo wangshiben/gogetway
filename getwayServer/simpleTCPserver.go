@@ -138,6 +138,7 @@ func (s *SimpleTCPServer) PackageToForward(Forward, Client net.Conn, Resource Co
 	var midReader io.Reader
 	ctx := s.contextPool.GetContext().(*UsefullStructs.Contexts)
 
+	// don't worry about the reader because it's not used , teeReader have no any  effect,when call io.Copy(Forward, CountReader) it will be used
 	switch s.ListenType {
 	case TCPType:
 		buffer, midReader = ReadTcpType(Client, buffer)
@@ -219,6 +220,7 @@ func (s *SimpleTCPServer) PackageToClient(Client, Forward net.Conn, Resource Con
 func (s *SimpleTCPServer) startRecording(buffer *bytes.Buffer, ctx context.Context, resource ConnectResource) reader.ReadHook {
 	return func(index uint64) (isContinue bool, err error) {
 		bytesWrite := buffer.Bytes()
+		//fmt.Printf("buffer Read %s \n\n", string(bytesWrite))
 		defer buffer.Reset()
 		if s.startAnalyze.Get() {
 			packet := proto.NewPacket(buffer.Bytes(), ctx.Value(FromIP).(string), ctx.Value(ToIP).(string), s.ListenType)
@@ -230,10 +232,12 @@ func (s *SimpleTCPServer) startRecording(buffer *bytes.Buffer, ctx context.Conte
 				return parse, nil
 			}
 		}
-		go func() {
+		dataBytes := make([]byte, len(bytesWrite))
+		copy(dataBytes, bytesWrite)
+		go func(bytesWrite []byte) {
 			resource.WriteQueue().AddItem(ctx, bytesWrite, index, writeDataGenerator(resource.Writer(), resource.WriteFunc()))
 			//defer s.contextPool.Put(ctx)
-		}()
+		}(dataBytes)
 		return true, nil
 	}
 }
@@ -241,27 +245,31 @@ func (s *SimpleTCPServer) startRecording(buffer *bytes.Buffer, ctx context.Conte
 func writeDataGenerator(writer io.Writer, writeFunc WriteFunc) WriteFunc {
 	return func(data []byte, ctx context.Context) (offset int, err error) {
 		ctxs, ok := ctx.(*UsefullStructs.Contexts)
+		clientType := TCPType
+		fromTo := ""
 		if ok {
-			clientType := ctxs.Value(ListenType).(Types.ClientType)
-			fromTo := ctxs.Value(FromTo).(string)
-			writeProtoData := proto.WriteProto(data, clientType, fromTo)
-			if writeFunc != nil {
-				return writeFunc(writeProtoData, ctx)
-			} else {
-				n, err := writer.Write(writeProtoData)
-				//fileWriter, ok := writer.(*os.File)
-				//if ok {
-				//	// if io.Writer is a file, sync it now
-				//	err = fileWriter.Sync()
-				//	if err != nil {
-				//		fmt.Printf("error: %s\n", err.Error())
-				//		return 0, err
-				//	}
-				//}
-				return n, err
-			}
+			clientType = ctxs.Value(ListenType).(Types.ClientType)
+			fromTo = ctxs.Value(FromTo).(string)
+
+		} else {
+			fromTo = ctx.Value(FromTo).(string)
 		}
-		return 0, err
+		writeProtoData := proto.WriteProto(data, clientType, fromTo)
+		if writeFunc != nil {
+			return writeFunc(writeProtoData, ctx)
+		} else {
+			n, err := writer.Write(writeProtoData)
+			//fileWriter, ok := writer.(writer2.Flushable)
+			//if ok {
+			//	// if io.Writer is a file, sync it now
+			//	err = fileWriter.Flush()
+			//	if err != nil {
+			//		fmt.Printf("error: %s\n", err.Error())
+			//		return 0, err
+			//	}
+			//}
+			return n, err
+		}
 	}
 }
 func (s *SimpleTCPServer) UpdateResourceGroup(resourceGroup ResourceGroup) {
@@ -275,6 +283,10 @@ func ReadTcpType(conn io.Reader, buffer *bytes.Buffer) (buffers *bytes.Buffer, m
 	reader := io.TeeReader(conn, buffer)
 	return buffer, reader
 }
+
+//func ReadHttpType(conn io.Reader, buffer *bytes.Buffer)(buffers *bytes.Buffer, midReader io.Reader){
+//
+//}
 
 func NewSimpleTCPServer(ForwardAdd, LocalAdd string, ListenType Types.ClientType) *SimpleTCPServer {
 	file, err := os.OpenFile("log1.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)

@@ -36,6 +36,8 @@ func (n *NetTeeReader) Read(bytes []byte) (int, error) {
 	if err != nil {
 		return isRead, err
 	}
+
+	//fmt.Printf("read:%s \n\n", string(bytes[:read+isRead]))
 	if hook {
 		readHook, err := n.readHook(n.loadIndex)
 		if err != nil {
