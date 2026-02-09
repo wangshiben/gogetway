@@ -3,7 +3,9 @@ package httpParser
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/textproto"
@@ -12,6 +14,7 @@ import (
 type HttpRequestReader struct {
 	connection     net.Conn
 	headData       []byte
+	peekLength     int
 	bodyData       []byte
 	requestVersion int // 1: 1.x 2: 2.x 3: 3.x
 	dataLength     int //
@@ -21,24 +24,35 @@ func (h *HttpRequestReader) ReadHeader(peekData []byte) ([]byte, error) {
 	if len(h.headData) != 0 {
 		return h.headData, nil
 	}
-	reader := bufio.NewReader(h.connection)
+
 	realHeader := make([]byte, len(peekData))
+	h.peekLength = len(peekData)
 	copy(realHeader, peekData)
+	header, err := h.readOriginHeader()
+	if err != nil {
+		return nil, err
+	}
+	realHeader = append(realHeader, header...)
+	h.headData = realHeader
+	return realHeader, nil
+}
+func (h *HttpRequestReader) readOriginHeader() ([]byte, error) {
+	res := make([]byte, 0)
+	reader := bufio.NewReader(h.connection)
 	for {
 		line, readErr := reader.ReadBytes('\n')
 		if readErr != nil {
 			return nil, readErr
 		}
 
-		realHeader = append(realHeader, line...)
+		res = append(res, line...)
 
 		// 检查是否是空行（即 "\r\n"）
 		if len(line) == 2 && line[0] == '\r' && line[1] == '\n' {
 			break // HTTP 头部结束
 		}
 	}
-	h.headData = realHeader
-	return realHeader, nil
+	return res, nil
 }
 
 func (h *HttpRequestReader) ParseHeader(peekData []byte) (http.Header, error) {
@@ -58,6 +72,31 @@ func (h *HttpRequestReader) ParseHeader(peekData []byte) (http.Header, error) {
 		}
 	}
 	return httpHeader, nil
+}
+
+func (h *HttpRequestReader) ReadBody() ([]byte, error) {
+	if len(h.headData) == 0 {
+		return nil, errors.New("you must read header first")
+	}
+	if len(h.bodyData) != 0 && h.dataLength != 0 {
+		bodyData := make([]byte, h.dataLength)
+		reader := bufio.NewReader(h.connection)
+		_, err := io.ReadFull(reader, bodyData)
+		if err != nil {
+			return nil, err
+		}
+		h.bodyData = bodyData
+		return bodyData, nil
+	}
+	return h.bodyData, nil
+
+}
+func NewHttpParser(connect net.Conn) *HttpRequestReader {
+	return &HttpRequestReader{
+		connection: connect,
+		headData:   make([]byte, 0),
+		bodyData:   make([]byte, 0),
+	}
 }
 
 // parseHTTPHeader 从完整的 HTTP 请求头字节中提取 http.Header
