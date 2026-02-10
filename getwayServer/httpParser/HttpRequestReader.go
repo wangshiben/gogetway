@@ -5,10 +5,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"gogetway/reader"
 	"io"
 	"net"
 	"net/http"
 	"net/textproto"
+	"strconv"
 )
 
 type HttpRequestReader struct {
@@ -37,22 +39,12 @@ func (h *HttpRequestReader) ReadHeader(peekData []byte) ([]byte, error) {
 	return realHeader, nil
 }
 func (h *HttpRequestReader) readOriginHeader() ([]byte, error) {
-	res := make([]byte, 0)
-	reader := bufio.NewReader(h.connection)
-	for {
-		line, readErr := reader.ReadBytes('\n')
-		if readErr != nil {
-			return nil, readErr
-		}
-
-		res = append(res, line...)
-
-		// 检查是否是空行（即 "\r\n"）
-		if len(line) == 2 && line[0] == '\r' && line[1] == '\n' {
-			break // HTTP 头部结束
-		}
+	bytesReader := reader.NewByteReader(h.connection)
+	match, err := bytesReader.ReadUntilMatch([]byte("\r\n\r\n"))
+	if err != nil {
+		return nil, err
 	}
-	return res, nil
+	return match, nil
 }
 
 func (h *HttpRequestReader) ParseHeader(peekData []byte) (http.Header, error) {
@@ -66,10 +58,11 @@ func (h *HttpRequestReader) ParseHeader(peekData []byte) (http.Header, error) {
 	}
 	length := httpHeader.Get("Content-Length")
 	if length != "" {
-		h.dataLength, err = fmt.Sscanf(length, "%d", &h.dataLength)
+		parseInt, err := strconv.ParseInt(length, 10, 64)
 		if err != nil {
 			return nil, err
 		}
+		h.dataLength = int(parseInt)
 	}
 	return httpHeader, nil
 }
@@ -78,8 +71,8 @@ func (h *HttpRequestReader) ReadBody() ([]byte, error) {
 	if len(h.headData) == 0 {
 		return nil, errors.New("you must read header first")
 	}
-	if len(h.bodyData) != 0 && h.dataLength != 0 {
-		bodyData := make([]byte, h.dataLength)
+	if len(h.bodyData) == 0 && h.dataLength != 0 {
+		bodyData := make([]byte, h.dataLength) // \r\n\r\n分隔符长度
 		reader := bufio.NewReader(h.connection)
 		_, err := io.ReadFull(reader, bodyData)
 		if err != nil {

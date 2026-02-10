@@ -40,7 +40,7 @@ func SimpleGetServer() {
 }
 
 func SimplePostServer() {
-	httpServer := server.NewHttpServer(":8090")
+	httpServer := server.NewHttpServer(":8888")
 	httpServer.AddHttpHandler("/post", http.MethodPost, func(w http.ResponseWriter, r *RouteDisPatch.Request) {
 		request := r.GetRequest()
 		fmt.Printf("%s", "{\"\r\n}")

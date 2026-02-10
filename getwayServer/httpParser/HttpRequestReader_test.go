@@ -29,11 +29,13 @@ func TestNewHttpParser(t *testing.T) {
 		reader := NewHttpParser(conn)
 		header, err := reader.ParseHeader(line)
 		if err != nil {
+			fmt.Printf("Hanled error: %v\n", err)
 			return
 		}
 		fmt.Printf("header: %v\n", header)
 		body, err := reader.ReadBody()
 		if err != nil {
+			fmt.Printf("Body error: %v\n", err)
 			return
 		}
 		fmt.Printf("body: %v\n", string(body))
