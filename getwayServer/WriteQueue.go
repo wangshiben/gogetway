@@ -3,8 +3,8 @@ package getwayServer
 import (
 	"context"
 	"fmt"
-	"gogetway/UsefullStructs"
-	"gogetway/logger"
+	"github.com/wangshiben/gogetway/UsefullStructs"
+	"github.com/wangshiben/gogetway/logger"
 	"sync"
 )
 

@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"gogetway/reader"
+	"github.com/wangshiben/gogetway/reader"
 	"io"
 	"net"
 	"net/http"

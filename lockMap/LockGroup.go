@@ -3,7 +3,7 @@ package lockMap
 import (
 	"context"
 	"errors"
-	"gogetway/UsefullStructs"
+	"github.com/wangshiben/gogetway/UsefullStructs"
 	"strings"
 	"time"
 )

@@ -3,8 +3,8 @@ package getwayServer
 import (
 	"context"
 	"errors"
-	"gogetway/lockMap"
-	"gogetway/writer"
+	"github.com/wangshiben/gogetway/lockMap"
+	"github.com/wangshiben/gogetway/writer"
 	"io"
 	"net"
 	"time"

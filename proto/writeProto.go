@@ -3,7 +3,7 @@ package proto
 import (
 	"bytes"
 	"encoding/binary"
-	"gogetway/Types"
+	"github.com/wangshiben/gogetway/Types"
 	"time"
 )
 

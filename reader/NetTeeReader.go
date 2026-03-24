@@ -2,8 +2,8 @@ package reader
 
 import (
 	"errors"
-	"gogetway/UsefullStructs"
-	"gogetway/lockMap"
+	"github.com/wangshiben/gogetway/UsefullStructs"
+	"github.com/wangshiben/gogetway/lockMap"
 	"io"
 	"sync"
 )

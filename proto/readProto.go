@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"gogetway/Types"
+	"github.com/wangshiben/gogetway/Types"
 	"io"
 	"strings"
 )

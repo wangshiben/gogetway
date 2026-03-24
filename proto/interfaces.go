@@ -1,6 +1,6 @@
 package proto
 
-import "gogetway/Types"
+import "github.com/wangshiben/gogetway/Types"
 
 type Pack interface {
 	Marshal() []byte

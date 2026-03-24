@@ -1,7 +1,7 @@
 package getwayServer
 
 import (
-	"gogetway/lockMap"
+	"github.com/wangshiben/gogetway/lockMap"
 	"io"
 )
 

@@ -2,7 +2,7 @@ package getwayServer
 
 import (
 	"context"
-	"gogetway/lockMap"
+	"github.com/wangshiben/gogetway/lockMap"
 	"io"
 	"net"
 )

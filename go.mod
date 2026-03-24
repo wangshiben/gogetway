@@ -1,4 +1,4 @@
-module gogetway
+module github.com/wangshiben/gogetway
 
 go 1.24.4
 

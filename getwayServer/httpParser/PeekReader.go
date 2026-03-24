@@ -1,7 +1,7 @@
 package httpParser
 
 import (
-	"gogetway/reader"
+	"github.com/wangshiben/gogetway/reader"
 	"net"
 )
 
