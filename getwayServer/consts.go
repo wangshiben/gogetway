@@ -1,6 +1,6 @@
 package getwayServer
 
-import "gogetway/Types"
+import "github.com/wangshiben/gogetway/Types"
 
 const (
 	TCPType  Types.ClientType = 1

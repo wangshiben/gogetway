@@ -2,8 +2,8 @@ package tcpPlayback
 
 import (
 	"errors"
-	"gogetway/lockMap"
-	"gogetway/proto"
+	"github.com/wangshiben/gogetway/lockMap"
+	"github.com/wangshiben/gogetway/proto"
 	"io"
 	"log"
 	"net"

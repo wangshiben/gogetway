@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"gogetway/getwayServer"
+	"github.com/wangshiben/gogetway/getwayServer"
 	"io"
 	"log"
 	"net"
