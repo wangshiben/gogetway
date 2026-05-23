@@ -10,16 +10,33 @@ import (
 	"sync"
 
 	"github.com/wangshiben/gogetway/getwayServer"
+	"github.com/wangshiben/gogetway/tcpPlayback"
 )
 
 func main() {
 	listenAddr := flag.String("listen", "", "TCP listen address, for example :9000 or 127.0.0.1:9000")
 	flag.StringVar(listenAddr, "l", "", "shorthand for -listen")
-	forwardAddr := flag.String("forward", "", "TCP forward address, for example 127.0.0.1:8080")
+	forwardAddr := flag.String("forward", "", "TCP forward address, or replay target address")
 	flag.StringVar(forwardAddr, "f", "", "shorthand for -forward")
-	outputFile := flag.String("log", "", "record file path")
+	outputFile := flag.String("log", "", "record file path, or replay input file when -replay is set")
 	flag.StringVar(outputFile, "o", "", "shorthand for -log")
+	replayMode := flag.Bool("replay", false, "replay packets from -log to -forward")
+	flag.BoolVar(replayMode, "r", false, "shorthand for -replay")
 	flag.Parse()
+
+	if *replayMode {
+		if *forwardAddr == "" || *outputFile == "" {
+			flag.Usage()
+			os.Exit(2)
+		}
+		fmt.Printf("replaying packets from %s to %s\n", *outputFile, *forwardAddr)
+		count, err := tcpPlayback.ReplayFileToTarget(*outputFile, *forwardAddr, false, nil)
+		if err != nil {
+			log.Fatalf("replay failed: %v", err)
+		}
+		fmt.Printf("replayed %d packets from %s to %s\n", count, *outputFile, *forwardAddr)
+		return
+	}
 
 	if *listenAddr == "" || *forwardAddr == "" {
 		flag.Usage()
