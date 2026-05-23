@@ -21,11 +21,11 @@ func SimpleGetServer() {
 	httpServer := server.NewHttpServer(":8090")
 	httpServer.AddHttpHandler("/", http.MethodGet, func(w http.ResponseWriter, r *RouteDisPatch.Request) {
 		request := r.GetRequest()
-		all, err := io.ReadAll(request.Body)
+		_, err := io.ReadAll(request.Body)
 		if err != nil {
 			fmt.Printf("error: %s", err.Error())
 		}
-		fmt.Printf("get:\n source:%s \n \t%v ; \n \tbody: %s", request.RemoteAddr, request, string(all))
+		//fmt.Printf("get:\n source:%s \n \t%v ; \n \tbody: %s", request.RemoteAddr, request, string(all))
 		resp := &Response{200, "success"}
 		marshal, err := json.Marshal(&resp)
 		if err != nil {
