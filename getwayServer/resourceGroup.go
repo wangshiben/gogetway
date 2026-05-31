@@ -36,7 +36,7 @@ func (d *DefaultResourceGroup) GetResource(ctx context.Context, Connect net.Conn
 		if err != nil {
 			return nil, nil, err
 		}
-		err = lock.UpdateOther(resource)
+		err = lock.UpdateOther(connectResource)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -65,7 +65,7 @@ func (d *DefaultResourceGroup) NewResourceFunc(ctx context.Context, From string)
 
 		return &DefaultResource{
 			writer:     d.defaultWriter,
-			writeFunc:  nil,
+			writeFunc:  d.writeFunc,
 			writeQueue: NewWriteQueue(ctx),
 			lock:       lock,
 			writeType:  "",

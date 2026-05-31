@@ -107,6 +107,7 @@ func (s *SimpleTCPServer) StartListen() {
 			}() // client → target
 			go func() {
 				s.PackageToClient(clientConn, targetConn, resource)
+				group.Done()
 			}() // target → client
 			group.Wait()
 			CloseHook(resource)

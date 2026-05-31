@@ -33,6 +33,6 @@ func handleConnection(clientConn net.Conn) {
 }
 
 func main() {
-	server := getwayServer.NewSimpleTCPServer("127.0.0.1:8000", ":8081", 1)
+	server := getwayServer.NewSimpleTCPServer("lt.mt114514.top:1200", ":9000", 1)
 	server.StartListen()
 }

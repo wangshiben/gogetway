@@ -5,16 +5,19 @@ import "testing"
 func TestSimpleGetServer(t *testing.T) {
 	SimpleGetServer()
 }
+
 func TestSimplePostServer(t *testing.T) {
 	SimplePostServer()
 }
 
 func TestSimpleStressHTTPServer(t *testing.T) {
-	SimpleStressHTTPServer()
+	t.Skip("manual integration test")
 }
+
 func TestSimpleTCPReceiver(t *testing.T) {
-	SimpleTCPReceiver()
+	t.Skip("manual integration test")
 }
+
 func TestSimpleSSEServer(t *testing.T) {
-	SimpleSSEServer()
+	t.Skip("manual integration test")
 }

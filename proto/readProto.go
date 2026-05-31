@@ -103,6 +103,7 @@ func ReadProtoFromReader(reader io.Reader) (*bufio.Scanner, error) {
 // NewChunkScannerWithDelim 创建一个 scanner，每次返回以 delim 开头的完整块（包含 delim）
 func NewChunkScannerWithDelim(reader *bufio.Reader, delim []byte) *bufio.Scanner {
 	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 0, 64*1024), 64*1024*1024)
 	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 		if len(delim) == 0 {
 			return 0, nil, fmt.Errorf("empty delimiter")

@@ -8,7 +8,7 @@ It supports a wide range of TCP-based protocols, including **HTTP/1.0–HTTP/2.0
 ## Features
 
 1. **Embeddable as a library**: Can be directly integrated into your projects for secondary development. Comprehensive integration documentation is provided (currently in progress).
-2. **Ready-to-use deployment**: Pre-built installation packages are available on the Releases page for quick setup and immediate use (under development).
+2. **Ready-to-use binaries**: Pre-built `tcp-proxy` binaries are available on the Releases page for out-of-the-box proxying, recording, and replay.
 3. **Extremely low resource consumption**: Uses minimal CPU and memory during operation.
 
 ## Use Cases
@@ -23,8 +23,48 @@ It supports a wide range of TCP-based protocols, including **HTTP/1.0–HTTP/2.0
 
 ![Runtime Design](img%2FruntimeDesgin.png)
 
+## Completed Capabilities
+
+1. **Plugin / hook support at key stages**: Users can customize forwarding and recording behavior.
+2. **Replay support is available**: Recorded TCP traffic can now be replayed to a target service.
+3. **Bundled `tcp-proxy` binaries**: Ordinary users can use the packaged binary directly.
+
+## tcp-proxy Binary Usage
+
+`tcp-proxy` supports proxying, recording, replay, and passive mirroring.
+
+### 1. Proxy and record traffic
+
+```bash
+./tcp-proxy -l :9000 -f 127.0.0.1:8080 -o ./traffic.log
+```
+
+### 2. Replay recorded traffic to a target service
+
+```bash
+./tcp-proxy -r -f 127.0.0.1:8080 -o ./traffic.log
+```
+
+### 3. Passive mirror and record traffic only
+
+```bash
+./tcp-proxy -l 8090 -io -o ./mirror.log
+```
+
+This mode does not occupy the observed service port and is suitable for passive mirroring.
+
+### 4. Mirror and forward to another service
+
+```bash
+./tcp-proxy -l 8090 -f 127.0.0.1:18090 -o ./mirror.log
+```
+
+## Notes
+
+1. To use the `-io` passive mirror mode, install `Npcap` on Windows or `libpcap` on Linux.
+2. When using `-io`, run the program with sufficient packet-capture permissions.
+3. Without `-io`, the proxy-record and replay modes can be used directly.
+
 ## Next Development Milestones
 
-1. **Plugin-based architecture**: Introduce pluggable hooks at key processing nodes to enable user-defined extensions.
-2. **Enhance traffic replay module**: Currently supports only traffic reading; full traffic replay functionality will be implemented.
-3. **Built-in HTTP management server**: Embed a default HTTP server to provide a web-based management interface, improving out-of-the-box usability (planned for v2.0).
+1. **Built-in HTTP management server**: Embed a default HTTP server to provide a web-based management interface, improving out-of-the-box usability (planned for v2.0).
