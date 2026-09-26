@@ -19,6 +19,30 @@ gogetway是一款开源的能支持TCP流量的高性能流量录制网关，适
 2. 已提供 release 页面中的 `tcp-proxy` 二进制文件，支持开箱即用的代理、录制与回放
 3. 占用超低的CPU和内存
 
+## Linux 安装包
+
+`dist` 目录提供以下 `amd64/x86_64` 安装包：
+
+- Ubuntu 22.04 及以上：`gogetway_0.0.6_ubuntu22.04_amd64.deb`
+- Debian 12 及以上：`gogetway_0.0.6_debian12_amd64.deb`
+- Red Hat Enterprise Linux 9、Rocky Linux 9、AlmaLinux 9 及以上：`gogetway-0.0.6-1.el9.x86_64.rpm`
+- Arch Linux：`gogetway-0.0.6-1-x86_64.pkg.tar.zst`
+
+安装命令：
+
+```bash
+# Ubuntu / Debian
+sudo apt install ./gogetway_0.0.6_ubuntu22.04_amd64.deb
+
+# Red Hat / Rocky Linux / AlmaLinux
+sudo dnf install ./gogetway-0.0.6-1.el9.x86_64.rpm
+
+# Arch Linux
+sudo pacman -U ./gogetway-0.0.6-1-x86_64.pkg.tar.zst
+```
+
+安装后使用 `gogetway` 命令启动程序。安装包会声明对应系统的 `libpcap` 运行时依赖。
+
 ## 适用场景:
 
 1. 对于蜜獾服务器可使用其进行原始的流量记录，便于溯源、审计

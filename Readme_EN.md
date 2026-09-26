@@ -11,6 +11,30 @@ It supports a wide range of TCP-based protocols, including **HTTP/1.0–HTTP/2.0
 2. **Ready-to-use binaries**: Pre-built `tcp-proxy` binaries are available on the Releases page for out-of-the-box proxying, recording, and replay.
 3. **Extremely low resource consumption**: Uses minimal CPU and memory during operation.
 
+## Linux Packages
+
+The `dist` directory contains the following `amd64/x86_64` packages:
+
+- Ubuntu 22.04 and newer: `gogetway_0.0.6_ubuntu22.04_amd64.deb`
+- Debian 12 and newer: `gogetway_0.0.6_debian12_amd64.deb`
+- Red Hat Enterprise Linux 9, Rocky Linux 9, AlmaLinux 9 and newer: `gogetway-0.0.6-1.el9.x86_64.rpm`
+- Arch Linux: `gogetway-0.0.6-1-x86_64.pkg.tar.zst`
+
+Install with the native package manager:
+
+```bash
+# Ubuntu / Debian
+sudo apt install ./gogetway_0.0.6_ubuntu22.04_amd64.deb
+
+# Red Hat / Rocky Linux / AlmaLinux
+sudo dnf install ./gogetway-0.0.6-1.el9.x86_64.rpm
+
+# Arch Linux
+sudo pacman -U ./gogetway-0.0.6-1-x86_64.pkg.tar.zst
+```
+
+After installation, start the program with `gogetway`. Each package declares the appropriate `libpcap` runtime dependency.
+
 ## Use Cases
 
 1. **Honeypot / "Honey Badger" servers**: Record raw network traffic for security forensics and auditing.
