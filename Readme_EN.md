@@ -33,6 +33,15 @@ It supports a wide range of TCP-based protocols, including **HTTP/1.0–HTTP/2.0
 
 `tcp-proxy` supports proxying, recording, replay, and passive mirroring.
 
+All modes support `-debug` (or `-v`) to enable diagnostic logging. Debug logs are written to the terminal and to a timestamped `.log` file in the current directory.
+
+Use `-background` (or `-b`) to detach the process and run it in the background. The command prints the background PID; when combined with `-v`, debug logs remain in the directory where the command was started.
+
+```bash
+./tcp-proxy -debug -l :9000 -f 127.0.0.1:8080 -o ./traffic.log
+./tcp-proxy -b -v -l :9000 -f 127.0.0.1:8080
+```
+
 ### 1. Proxy and record traffic
 
 ```bash

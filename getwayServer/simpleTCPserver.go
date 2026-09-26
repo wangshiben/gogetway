@@ -83,6 +83,7 @@ func (s *SimpleTCPServer) StartListen() {
 			log.Printf("Accept error: %v", err)
 			continue
 		}
+		logger.LogInfof("inbound connection accepted: client=%s listener=%s", clientConn.RemoteAddr(), s.Port)
 		go func(clientConn net.Conn) {
 			targetAddr := s.Forward
 			ctx := s.contextPool.GetContext()
@@ -90,12 +91,19 @@ func (s *SimpleTCPServer) StartListen() {
 			targetConn, err := s.connectTarget(ctx, clientConn)
 			if err != nil {
 				log.Printf("Failed to connect to target %s: %v", targetAddr, err)
+				logger.LogInfof("outbound connection failed: client=%s target=%s error=%v", clientConn.RemoteAddr(), targetAddr, err)
+				logger.LogInfof("connection closing: client=%s target=%s", clientConn.RemoteAddr(), targetAddr)
 				clientConn.Close()
 				return
 			}
+			logger.LogInfof("outbound connection established: client=%s target=%s", clientConn.RemoteAddr(), targetConn.RemoteAddr())
 			// TODO feature: you can init ctx with connection init
 			resource, CloseHook, err := s.resourceGroup.GetResource(ctx, clientConn)
 			if err != nil {
+				logger.LogInfof("connection resource initialization failed: client=%s target=%s error=%v", clientConn.RemoteAddr(), targetConn.RemoteAddr(), err)
+				logger.LogInfof("connection closing: client=%s target=%s", clientConn.RemoteAddr(), targetConn.RemoteAddr())
+				_ = targetConn.Close()
+				_ = clientConn.Close()
 				return
 			}
 			group := sync.WaitGroup{}
@@ -110,6 +118,7 @@ func (s *SimpleTCPServer) StartListen() {
 				group.Done()
 			}() // target → client
 			group.Wait()
+			logger.LogInfof("connection closing: client=%s target=%s", clientConn.RemoteAddr(), targetConn.RemoteAddr())
 			CloseHook(resource)
 		}(clientConn)
 	}
@@ -152,7 +161,7 @@ func (s *SimpleTCPServer) PackageToForward(Forward, Client net.Conn, Resource Co
 	ctx.Put(FromTo, fmt.Sprintf("%s...%s", From, To))
 	ctx.Put(FromIP, From)
 	ctx.Put(ToIP, To)
-	CountReader := reader.NewNetTeeReader(midReader, Resource.GetLock(), s.startRecording(buffer, ctx, Resource))
+	CountReader := reader.NewNetTeeReader(midReader, Resource.GetLock(), s.startRecording(buffer, ctx, Resource, "inbound"))
 
 	// Single forward copy  from client to forwardIP 单向拷贝： client -> forward
 	if s.startAnalyze.Get() {
@@ -203,7 +212,7 @@ func (s *SimpleTCPServer) PackageToClient(Client, Forward net.Conn, Resource Con
 	ctx.Put(FromIP, From)
 	ctx.Put(ToIP, To)
 
-	CountReader := reader.NewNetTeeReader(midReader, Resource.GetLock(), s.startRecording(buffer, ctx, Resource))
+	CountReader := reader.NewNetTeeReader(midReader, Resource.GetLock(), s.startRecording(buffer, ctx, Resource, "outbound"))
 
 	// Single forward copy  from client to forwardIP 单向拷贝：从 client 到 forward
 
@@ -218,9 +227,10 @@ func (s *SimpleTCPServer) PackageToClient(Client, Forward net.Conn, Resource Con
 	//s.currentIndex.Set(currentIndex + 1)
 
 }
-func (s *SimpleTCPServer) startRecording(buffer *bytes.Buffer, ctx context.Context, resource ConnectResource) reader.ReadHook {
+func (s *SimpleTCPServer) startRecording(buffer *bytes.Buffer, ctx context.Context, resource ConnectResource, direction string) reader.ReadHook {
 	return func(index uint64) (isContinue bool, err error) {
 		bytesWrite := buffer.Bytes()
+		logger.LogInfof("%s data: from=%s to=%s bytes=%d index=%d", direction, ctx.Value(FromIP), ctx.Value(ToIP), len(bytesWrite), index)
 		//fmt.Printf("buffer Read %s \n\n", string(bytesWrite))
 		defer buffer.Reset()
 		if s.startAnalyze.Get() {
@@ -236,6 +246,7 @@ func (s *SimpleTCPServer) startRecording(buffer *bytes.Buffer, ctx context.Conte
 		dataBytes := make([]byte, len(bytesWrite))
 		copy(dataBytes, bytesWrite)
 		go func(bytesWrite []byte) {
+			logger.LogInfof("async write queued: from=%s to=%s bytes=%d index=%d", ctx.Value(FromIP), ctx.Value(ToIP), len(bytesWrite), index)
 			resource.WriteQueue().AddItem(ctx, bytesWrite, index, writeDataGenerator(resource.Writer(), resource.WriteFunc()))
 			//defer s.contextPool.Put(ctx)
 		}(dataBytes)

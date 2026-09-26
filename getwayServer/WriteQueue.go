@@ -2,7 +2,6 @@ package getwayServer
 
 import (
 	"context"
-	"fmt"
 	"github.com/wangshiben/gogetway/UsefullStructs"
 	"github.com/wangshiben/gogetway/logger"
 	"sync"
@@ -16,7 +15,7 @@ type WriteQueue struct {
 }
 
 func (w *WriteQueue) AddItem(ctx context.Context, Data []byte, Index uint64, HookWrite WriteFunc) {
-	logger.LogInfo(fmt.Sprintf("AddItem: %d FROM To %s", Index, ctx.Value(FromTo).(string)))
+	logger.LogInfof("async write enqueued: index=%d from_to=%v bytes=%d", Index, ctx.Value(FromTo), len(Data))
 	pushItem := &QueueItem{Data: Data, Index: Index, HookWrite: HookWrite, Lock: sync.Mutex{}, ctx: ctx}
 	findPrev := w.waitingQueueHeader
 	flag := true
@@ -41,7 +40,14 @@ func (w *WriteQueue) AddItem(ctx context.Context, Data []byte, Index uint64, Hoo
 	}
 }
 func (w *WriteQueue) HandleQueue() {
-	w.handleQueues.HookWrite(w.handleQueues.Data, w.handleQueues.ctx)
+	item := w.handleQueues
+	logger.LogInfof("async write started: index=%d from_to=%v bytes=%d", item.Index, item.ctx.Value(FromTo), len(item.Data))
+	written, err := item.HookWrite(item.Data, item.ctx)
+	if err != nil {
+		logger.LogInfof("async write failed: index=%d from_to=%v bytes=%d written=%d error=%v", item.Index, item.ctx.Value(FromTo), len(item.Data), written, err)
+	} else {
+		logger.LogInfof("async write completed: index=%d from_to=%v bytes=%d written=%d", item.Index, item.ctx.Value(FromTo), len(item.Data), written)
+	}
 
 	w.handleQueues = nil
 	//w.CurrentIndex.Set(w.CurrentIndex.Get() + 1)

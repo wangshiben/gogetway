@@ -16,6 +16,7 @@ import (
 	"syscall"
 
 	"github.com/wangshiben/gogetway/getwayServer"
+	"github.com/wangshiben/gogetway/logger"
 	"github.com/wangshiben/gogetway/tcpPlayback"
 )
 
@@ -32,7 +33,21 @@ func main() {
 	flag.StringVar(device, "d", "", "shorthand for -device")
 	imageOnly := flag.Bool("image-only", false, "capture mirrored traffic only, without forwarding to -forward")
 	flag.BoolVar(imageOnly, "io", false, "shorthand for -image-only")
+	debugMode := flag.Bool("debug", false, "enable debug logging")
+	flag.BoolVar(debugMode, "v", false, "shorthand for -debug")
+	backgroundMode := flag.Bool("background", false, "run in the background")
+	flag.BoolVar(backgroundMode, "b", false, "shorthand for -background")
 	flag.Parse()
+	if *backgroundMode && !isBackgroundChild() {
+		pid, err := startBackgroundProcess(os.Args[1:])
+		if err != nil {
+			log.Fatalf("start background process failed: %v", err)
+		}
+		fmt.Printf("started in background (pid %d)\n", pid)
+		return
+	}
+	logger.SetDebug(*debugMode)
+	logger.InitLogger()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

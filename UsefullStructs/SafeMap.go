@@ -24,13 +24,24 @@ func (s *SafeMap[T]) Set(key string, value T) {
 	s.data[key] = value
 }
 
-// Iterator : no lock called
+// Iterator takes a snapshot before invoking callbacks so callbacks may safely
+// call Set or Delete on the same map.
 func (s *SafeMap[T]) Iterator(funcCall IteratorFunc[T]) {
-	s.lock.Lock()
-	for key, value := range s.data {
-		funcCall(key, value)
+	type entry struct {
+		key   string
+		value T
 	}
-	s.lock.Unlock()
+
+	s.lock.RLock()
+	entries := make([]entry, 0, len(s.data))
+	for key, value := range s.data {
+		entries = append(entries, entry{key: key, value: value})
+	}
+	s.lock.RUnlock()
+
+	for _, item := range entries {
+		funcCall(item.key, item.value)
+	}
 }
 func (s *SafeMap[T]) Delete(key string) {
 	s.lock.Lock()

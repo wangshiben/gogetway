@@ -13,6 +13,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/tcpassembly"
 	"github.com/wangshiben/gogetway/Types"
+	"github.com/wangshiben/gogetway/logger"
 	"github.com/wangshiben/gogetway/proto"
 )
 
@@ -286,6 +287,7 @@ func (s *gopacketMirrorStream) Reassembled(reassemblies []tcpassembly.Reassembly
 			Type:      TCPType,
 			SeenAt:    seenAt,
 		}
+		logger.LogInfof("%s mirrored data: from=%s to=%s bytes=%d", chunk.Direction, chunk.From, chunk.To, len(chunk.Data))
 		if err := s.forwardChunk(chunk); err != nil {
 			s.session.setErr(err)
 			return
@@ -337,16 +339,20 @@ func (s *gopacketMirrorStream) ensureForwardConn() (net.Conn, error) {
 	}
 	conn, err := s.session.mirror.config.DialContext(s.session.ctx, "tcp", s.session.mirror.config.TargetAddr)
 	if err != nil {
+		logger.LogInfof("mirror outbound connection failed: target=%s error=%v", s.session.mirror.config.TargetAddr, err)
 		return nil, err
 	}
+	logger.LogInfof("mirror outbound connection established: from=%s target=%s", s.from, s.session.mirror.config.TargetAddr)
 	s.forwardConn = conn
 	return conn, nil
 }
 
 func (s *gopacketMirrorStream) ReassemblyComplete() {
+	logger.LogInfof("mirrored connection closing: from=%s to=%s", s.from, s.to)
 	s.forwardMu.Lock()
 	defer s.forwardMu.Unlock()
 	if s.forwardConn != nil {
+		logger.LogInfof("mirror outbound connection closing: from=%s target=%s", s.from, s.session.mirror.config.TargetAddr)
 		s.forwardConn.Close()
 		s.forwardConn = nil
 	}
